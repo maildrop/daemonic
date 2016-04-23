@@ -33,3 +33,10 @@
 
 # Debug files
 *.dSYM/
+
+# Autotools generated files
+Makefile
+autom4te.cache
+autoscan.log
+configure.scan
+.deps/

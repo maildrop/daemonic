@@ -46,6 +46,10 @@
    構造的には 30点ぐらいだけど、とりあえずここまでにしておきましょう。
  */
 
+#if defined(HAVE_CONFIG_H)
+#include "config.h"
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
