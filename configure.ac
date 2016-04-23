@@ -1,6 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
+# see http://stackoverflow.com/questions/28558206/make-autotools-add-std-c11-to-cflags
 # AX_CHECK_CFLAGS(ADDITIONAL-CFLAGS, ACTION-IF-FOUND, ACTION-IF-NOT-FOUND)
 #
 # checks whether the $(CC) compiler accepts the ADDITIONAL-CFLAGS
