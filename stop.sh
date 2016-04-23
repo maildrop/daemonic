@@ -1,4 +1,5 @@
 #!/bin/sh 
-if [ -f /tmp/daemonlize.pid ] ; then
-    kill -INT `cat /tmp/daemonlize.pid` ;
+
+if [ -f /tmp/daemonic.pid ] ; then
+    kill -INT `cat /tmp/daemonic.pid` ;
 fi
