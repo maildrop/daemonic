@@ -1,6 +1,30 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
+# AX_CHECK_CFLAGS(ADDITIONAL-CFLAGS, ACTION-IF-FOUND, ACTION-IF-NOT-FOUND)
+#
+# checks whether the $(CC) compiler accepts the ADDITIONAL-CFLAGS
+# if so, they are added to the CXXFLAGS
+AC_DEFUN([AX_CHECK_CFLAGS],
+[
+  AC_MSG_CHECKING([whether compiler accepts "$1"])
+  cat > conftest.c << EOF
+  int main(){
+    return 0;
+  }
+EOF
+  if $CC $CPPFLAGS $CFLAGS [$1] -o conftest.o conftest.c # > /dev/null 2>&1
+  then
+  AC_MSG_RESULT([yes])
+    CFLAGS="${CFLAGS} [$1]"
+    [$2]
+  else
+    AC_MSG_RESULT([no])
+    [$3]
+  fi
+])dnl AX_CHECK_CFLAGS
+
+
 AC_PREREQ([2.69])
 AC_INIT(deamonic, 0.0.1 , [mit@shalab.net])
 AC_CONFIG_SRCDIR([daemonic.c])
@@ -10,6 +34,11 @@ AC_CONFIG_HEADERS([config.h])
 
 # Checks for programs.
 AC_PROG_CC
+
+AX_CHECK_CFLAGS( [-std=c11] , [] ,[
+  echo "C compiler cannot compile C11 mode"
+  exit 2
+])
 
 # Checks for libraries.
 

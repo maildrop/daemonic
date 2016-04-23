@@ -3894,6 +3894,30 @@ fi
 
 
 
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether compiler accepts \"-std=c11 \"" >&5
+$as_echo_n "checking whether compiler accepts \"-std=c11 \"... " >&6; }
+  cat > conftest.c << EOF
+  int main(){
+    return 0;
+  }
+EOF
+  if $CC $CPPFLAGS $CFLAGS -std=c11  -o conftest.o conftest.c # > /dev/null 2>&1
+  then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+    CFLAGS="${CFLAGS} -std=c11 "
+
+  else
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+
+  echo "C compiler cannot compile C11 mode"
+  exit 2
+
+  fi
+
+
 # Checks for libraries.
 
 # Checks for header files.

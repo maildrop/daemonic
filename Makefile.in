@@ -270,9 +270,9 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 daemonic_SOURCES = daemonic.c
-daemonic_CFLAGS = -D_XOPEN_SOURCE=700 -std=c11
+daemonic_CFLAGS = -D_XOPEN_SOURCE=700 
 sampledaemon_SOURCES = sampledaemon.c
-sampledaemon_CFLAGS = -D_XOPEN_SOURCE=700 -std=c11
+sampledaemon_CFLAGS = -D_XOPEN_SOURCE=700 
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
