@@ -65,6 +65,8 @@
 #include <limits.h>
 #include <assert.h>
 
+#include "verify.h"
+
 #if !defined( VERIFY )
 #if defined( NDEBUG )
 #define VERIFY( exp ) (exp)
@@ -72,8 +74,6 @@
 #define VERIFY( exp ) assert( exp )
 #endif /* defined( NDEBUG ) */
 #endif /* !defined( VERIFY ) */
-
-
 
 #if ( _POSIX_C_SOURCE < 200809L )
 #error you must use compiler option -D_XOPEN_SOURCE=700

@@ -1,7 +1,13 @@
 
+if DEBUG
+CFLAGS +=
+else
+CFLAGS += -DNDEBUG
+endif
+
 bin_PROGRAMS = daemonic
 noinst_PROGRAMS = sampledaemon
-daemonic_SOURCES = daemonic.c
+daemonic_SOURCES = daemonic.c verify.h
 daemonic_CFLAGS = -D_XOPEN_SOURCE=700 
 sampledaemon_SOURCES = sampledaemon.c
 sampledaemon_CFLAGS = -D_XOPEN_SOURCE=700 

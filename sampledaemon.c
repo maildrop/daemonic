@@ -9,6 +9,8 @@
 #include <errno.h>
 #include <assert.h>
 
+#include "verify.h"
+
 #if !defined( VERIFY )
 #if defined( NDEBUG )
 #define VERIFY( exp ) (exp)
