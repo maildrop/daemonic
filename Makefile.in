@@ -77,6 +77,7 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 bin_PROGRAMS = daemonic$(EXEEXT)
+noinst_PROGRAMS = sampledaemon$(EXEEXT)
 subdir = .
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/configure $(am__configure_deps) \
@@ -92,12 +93,17 @@ CONFIG_HEADER = config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
-PROGRAMS = $(bin_PROGRAMS)
+PROGRAMS = $(bin_PROGRAMS) $(noinst_PROGRAMS)
 am_daemonic_OBJECTS = daemonic-daemonic.$(OBJEXT)
 daemonic_OBJECTS = $(am_daemonic_OBJECTS)
 daemonic_LDADD = $(LDADD)
 daemonic_LINK = $(CCLD) $(daemonic_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
+am_sampledaemon_OBJECTS = sampledaemon-sampledaemon.$(OBJEXT)
+sampledaemon_OBJECTS = $(am_sampledaemon_OBJECTS)
+sampledaemon_LDADD = $(LDADD)
+sampledaemon_LINK = $(CCLD) $(sampledaemon_CFLAGS) $(CFLAGS) \
+	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -130,8 +136,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(daemonic_SOURCES)
-DIST_SOURCES = $(daemonic_SOURCES)
+SOURCES = $(daemonic_SOURCES) $(sampledaemon_SOURCES)
+DIST_SOURCES = $(daemonic_SOURCES) $(sampledaemon_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -265,6 +271,8 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 daemonic_SOURCES = daemonic.c
 daemonic_CFLAGS = -D_XOPEN_SOURCE=700 -std=c11
+sampledaemon_SOURCES = sampledaemon.c
+sampledaemon_CFLAGS = -D_XOPEN_SOURCE=700 -std=c11
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
@@ -362,9 +370,16 @@ uninstall-binPROGRAMS:
 clean-binPROGRAMS:
 	-test -z "$(bin_PROGRAMS)" || rm -f $(bin_PROGRAMS)
 
+clean-noinstPROGRAMS:
+	-test -z "$(noinst_PROGRAMS)" || rm -f $(noinst_PROGRAMS)
+
 daemonic$(EXEEXT): $(daemonic_OBJECTS) $(daemonic_DEPENDENCIES) $(EXTRA_daemonic_DEPENDENCIES) 
 	@rm -f daemonic$(EXEEXT)
 	$(AM_V_CCLD)$(daemonic_LINK) $(daemonic_OBJECTS) $(daemonic_LDADD) $(LIBS)
+
+sampledaemon$(EXEEXT): $(sampledaemon_OBJECTS) $(sampledaemon_DEPENDENCIES) $(EXTRA_sampledaemon_DEPENDENCIES) 
+	@rm -f sampledaemon$(EXEEXT)
+	$(AM_V_CCLD)$(sampledaemon_LINK) $(sampledaemon_OBJECTS) $(sampledaemon_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -373,6 +388,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/daemonic-daemonic.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sampledaemon-sampledaemon.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -401,6 +417,20 @@ daemonic-daemonic.obj: daemonic.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='daemonic.c' object='daemonic-daemonic.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(daemonic_CFLAGS) $(CFLAGS) -c -o daemonic-daemonic.obj `if test -f 'daemonic.c'; then $(CYGPATH_W) 'daemonic.c'; else $(CYGPATH_W) '$(srcdir)/daemonic.c'; fi`
+
+sampledaemon-sampledaemon.o: sampledaemon.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(sampledaemon_CFLAGS) $(CFLAGS) -MT sampledaemon-sampledaemon.o -MD -MP -MF $(DEPDIR)/sampledaemon-sampledaemon.Tpo -c -o sampledaemon-sampledaemon.o `test -f 'sampledaemon.c' || echo '$(srcdir)/'`sampledaemon.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/sampledaemon-sampledaemon.Tpo $(DEPDIR)/sampledaemon-sampledaemon.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='sampledaemon.c' object='sampledaemon-sampledaemon.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(sampledaemon_CFLAGS) $(CFLAGS) -c -o sampledaemon-sampledaemon.o `test -f 'sampledaemon.c' || echo '$(srcdir)/'`sampledaemon.c
+
+sampledaemon-sampledaemon.obj: sampledaemon.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(sampledaemon_CFLAGS) $(CFLAGS) -MT sampledaemon-sampledaemon.obj -MD -MP -MF $(DEPDIR)/sampledaemon-sampledaemon.Tpo -c -o sampledaemon-sampledaemon.obj `if test -f 'sampledaemon.c'; then $(CYGPATH_W) 'sampledaemon.c'; else $(CYGPATH_W) '$(srcdir)/sampledaemon.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/sampledaemon-sampledaemon.Tpo $(DEPDIR)/sampledaemon-sampledaemon.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='sampledaemon.c' object='sampledaemon-sampledaemon.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(sampledaemon_CFLAGS) $(CFLAGS) -c -o sampledaemon-sampledaemon.obj `if test -f 'sampledaemon.c'; then $(CYGPATH_W) 'sampledaemon.c'; else $(CYGPATH_W) '$(srcdir)/sampledaemon.c'; fi`
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -661,9 +691,8 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
-clean: clean-am
-
-clean-am: clean-binPROGRAMS clean-generic mostlyclean-am
+clean-am: clean-binPROGRAMS clean-generic clean-noinstPROGRAMS \
+	mostlyclean-am
 
 distclean: distclean-am
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
@@ -736,13 +765,13 @@ uninstall-am: uninstall-binPROGRAMS
 .MAKE: all install-am install-strip
 
 .PHONY: CTAGS GTAGS TAGS all all-am am--refresh check check-am clean \
-	clean-binPROGRAMS clean-cscope clean-generic cscope \
-	cscopelist-am ctags ctags-am dist dist-all dist-bzip2 \
-	dist-gzip dist-lzip dist-shar dist-tarZ dist-xz dist-zip \
-	distcheck distclean distclean-compile distclean-generic \
-	distclean-hdr distclean-tags distcleancheck distdir \
-	distuninstallcheck dvi dvi-am html html-am info info-am \
-	install install-am install-binPROGRAMS install-data \
+	clean-binPROGRAMS clean-cscope clean-generic \
+	clean-noinstPROGRAMS cscope cscopelist-am ctags ctags-am dist \
+	dist-all dist-bzip2 dist-gzip dist-lzip dist-shar dist-tarZ \
+	dist-xz dist-zip distcheck distclean distclean-compile \
+	distclean-generic distclean-hdr distclean-tags distcleancheck \
+	distdir distuninstallcheck dvi dvi-am html html-am info \
+	info-am install install-am install-binPROGRAMS install-data \
 	install-data-am install-dvi install-dvi-am install-exec \
 	install-exec-am install-html install-html-am install-info \
 	install-info-am install-man install-pdf install-pdf-am \
@@ -754,7 +783,7 @@ uninstall-am: uninstall-binPROGRAMS
 
 
 .PHONY: emacsclean
-
+clean: emacsclean clean-am
 emacsclean:
 	find . -name "*~" -exec rm {} \;
 
