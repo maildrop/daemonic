@@ -1,7 +1,4 @@
-﻿/* -*- compile-command: "gcc -D_XOPEN_SOURCE=700 -std=c11 -Wall -g -o daemonic daemonic.c"; -*- */
-/* _XOPEN_SOURCE=700 が定義されると _POSIX_C_SOURCE が 200809L で定義される */
-
-/**
+﻿/**
    
    このプログラムは、 Google APP Engine の dev_appserver.sh のように、
    制御を戻さないプログラムをデーモンのように動作させるためのプログラ
@@ -45,6 +42,8 @@
    
    構造的には 30点ぐらいだけど、とりあえずここまでにしておきましょう。
  */
+
+/* _XOPEN_SOURCE=700 が定義されると _POSIX_C_SOURCE が 200809L で定義される */
 
 #if defined(HAVE_CONFIG_H)
 #include "config.h"

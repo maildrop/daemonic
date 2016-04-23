@@ -1,5 +1,4 @@
-﻿/* -*- compile-command: "gcc -Wall -g -o sampledaemon sampledaemon.c"; -*- */
-/**
+﻿/**
    daemonlize の動作テストのための SIGINT を受けると、プロセスを
    終了させる簡単なプログラム
  */
