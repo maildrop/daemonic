@@ -45,6 +45,10 @@ config.status
 stamp-h1
 .deps/
 
+# working log
+workinglog.txt
+
+# output files. 
 daemonic
 sampledaemon
 execpath
