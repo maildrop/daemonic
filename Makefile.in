@@ -76,10 +76,10 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-@DEBUG_TRUE@am__append_1 = 
-@DEBUG_FALSE@am__append_2 = -DNDEBUG
+@DEBUG_TRUE@am__append_1 = -Wall
+@DEBUG_FALSE@am__append_2 = -Wall -DNDEBUG
 bin_PROGRAMS = daemonic$(EXEEXT)
-noinst_PROGRAMS = sampledaemon$(EXEEXT)
+noinst_PROGRAMS = sampledaemon$(EXEEXT) execpath$(EXEEXT)
 subdir = .
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/configure $(am__configure_deps) \
@@ -96,16 +96,15 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS) $(noinst_PROGRAMS)
-am_daemonic_OBJECTS = daemonic-daemonic.$(OBJEXT)
+am_daemonic_OBJECTS = daemonic.$(OBJEXT)
 daemonic_OBJECTS = $(am_daemonic_OBJECTS)
 daemonic_LDADD = $(LDADD)
-daemonic_LINK = $(CCLD) $(daemonic_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
-	$(LDFLAGS) -o $@
-am_sampledaemon_OBJECTS = sampledaemon-sampledaemon.$(OBJEXT)
+am_execpath_OBJECTS = execpath.$(OBJEXT)
+execpath_OBJECTS = $(am_execpath_OBJECTS)
+execpath_LDADD = $(LDADD)
+am_sampledaemon_OBJECTS = sampledaemon.$(OBJEXT)
 sampledaemon_OBJECTS = $(am_sampledaemon_OBJECTS)
 sampledaemon_LDADD = $(LDADD)
-sampledaemon_LINK = $(CCLD) $(sampledaemon_CFLAGS) $(CFLAGS) \
-	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -122,10 +121,6 @@ DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
-AM_V_lt = $(am__v_lt_@AM_V@)
-am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
-am__v_lt_0 = --silent
-am__v_lt_1 = 
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 AM_V_CC = $(am__v_CC_@AM_V@)
@@ -138,8 +133,10 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(daemonic_SOURCES) $(sampledaemon_SOURCES)
-DIST_SOURCES = $(daemonic_SOURCES) $(sampledaemon_SOURCES)
+SOURCES = $(daemonic_SOURCES) $(execpath_SOURCES) \
+	$(sampledaemon_SOURCES)
+DIST_SOURCES = $(daemonic_SOURCES) $(execpath_SOURCES) \
+	$(sampledaemon_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -193,7 +190,7 @@ AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
-CFLAGS = @CFLAGS@ $(am__append_1) $(am__append_2)
+CFLAGS = @CFLAGS@ $(am__append_1) $(am__append_2) -D_XOPEN_SOURCE=700
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
@@ -272,9 +269,8 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 daemonic_SOURCES = daemonic.c verify.h
-daemonic_CFLAGS = -D_XOPEN_SOURCE=700 
 sampledaemon_SOURCES = sampledaemon.c
-sampledaemon_CFLAGS = -D_XOPEN_SOURCE=700 
+execpath_SOURCES = execpath.c verify.h
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
@@ -377,11 +373,15 @@ clean-noinstPROGRAMS:
 
 daemonic$(EXEEXT): $(daemonic_OBJECTS) $(daemonic_DEPENDENCIES) $(EXTRA_daemonic_DEPENDENCIES) 
 	@rm -f daemonic$(EXEEXT)
-	$(AM_V_CCLD)$(daemonic_LINK) $(daemonic_OBJECTS) $(daemonic_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(daemonic_OBJECTS) $(daemonic_LDADD) $(LIBS)
+
+execpath$(EXEEXT): $(execpath_OBJECTS) $(execpath_DEPENDENCIES) $(EXTRA_execpath_DEPENDENCIES) 
+	@rm -f execpath$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(execpath_OBJECTS) $(execpath_LDADD) $(LIBS)
 
 sampledaemon$(EXEEXT): $(sampledaemon_OBJECTS) $(sampledaemon_DEPENDENCIES) $(EXTRA_sampledaemon_DEPENDENCIES) 
 	@rm -f sampledaemon$(EXEEXT)
-	$(AM_V_CCLD)$(sampledaemon_LINK) $(sampledaemon_OBJECTS) $(sampledaemon_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(sampledaemon_OBJECTS) $(sampledaemon_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -389,8 +389,9 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/daemonic-daemonic.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sampledaemon-sampledaemon.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/daemonic.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/execpath.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sampledaemon.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -405,34 +406,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
-
-daemonic-daemonic.o: daemonic.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(daemonic_CFLAGS) $(CFLAGS) -MT daemonic-daemonic.o -MD -MP -MF $(DEPDIR)/daemonic-daemonic.Tpo -c -o daemonic-daemonic.o `test -f 'daemonic.c' || echo '$(srcdir)/'`daemonic.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/daemonic-daemonic.Tpo $(DEPDIR)/daemonic-daemonic.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='daemonic.c' object='daemonic-daemonic.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(daemonic_CFLAGS) $(CFLAGS) -c -o daemonic-daemonic.o `test -f 'daemonic.c' || echo '$(srcdir)/'`daemonic.c
-
-daemonic-daemonic.obj: daemonic.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(daemonic_CFLAGS) $(CFLAGS) -MT daemonic-daemonic.obj -MD -MP -MF $(DEPDIR)/daemonic-daemonic.Tpo -c -o daemonic-daemonic.obj `if test -f 'daemonic.c'; then $(CYGPATH_W) 'daemonic.c'; else $(CYGPATH_W) '$(srcdir)/daemonic.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/daemonic-daemonic.Tpo $(DEPDIR)/daemonic-daemonic.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='daemonic.c' object='daemonic-daemonic.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(daemonic_CFLAGS) $(CFLAGS) -c -o daemonic-daemonic.obj `if test -f 'daemonic.c'; then $(CYGPATH_W) 'daemonic.c'; else $(CYGPATH_W) '$(srcdir)/daemonic.c'; fi`
-
-sampledaemon-sampledaemon.o: sampledaemon.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(sampledaemon_CFLAGS) $(CFLAGS) -MT sampledaemon-sampledaemon.o -MD -MP -MF $(DEPDIR)/sampledaemon-sampledaemon.Tpo -c -o sampledaemon-sampledaemon.o `test -f 'sampledaemon.c' || echo '$(srcdir)/'`sampledaemon.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/sampledaemon-sampledaemon.Tpo $(DEPDIR)/sampledaemon-sampledaemon.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='sampledaemon.c' object='sampledaemon-sampledaemon.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(sampledaemon_CFLAGS) $(CFLAGS) -c -o sampledaemon-sampledaemon.o `test -f 'sampledaemon.c' || echo '$(srcdir)/'`sampledaemon.c
-
-sampledaemon-sampledaemon.obj: sampledaemon.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(sampledaemon_CFLAGS) $(CFLAGS) -MT sampledaemon-sampledaemon.obj -MD -MP -MF $(DEPDIR)/sampledaemon-sampledaemon.Tpo -c -o sampledaemon-sampledaemon.obj `if test -f 'sampledaemon.c'; then $(CYGPATH_W) 'sampledaemon.c'; else $(CYGPATH_W) '$(srcdir)/sampledaemon.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/sampledaemon-sampledaemon.Tpo $(DEPDIR)/sampledaemon-sampledaemon.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='sampledaemon.c' object='sampledaemon-sampledaemon.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(sampledaemon_CFLAGS) $(CFLAGS) -c -o sampledaemon-sampledaemon.obj `if test -f 'sampledaemon.c'; then $(CYGPATH_W) 'sampledaemon.c'; else $(CYGPATH_W) '$(srcdir)/sampledaemon.c'; fi`
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique

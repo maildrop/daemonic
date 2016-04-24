@@ -1,16 +1,17 @@
 
 if DEBUG
-CFLAGS +=
+CFLAGS += -Wall
 else
-CFLAGS += -DNDEBUG
+CFLAGS += -Wall -DNDEBUG
 endif
 
+CFLAGS += -D_XOPEN_SOURCE=700 
+
 bin_PROGRAMS = daemonic
-noinst_PROGRAMS = sampledaemon
+noinst_PROGRAMS = sampledaemon execpath
 daemonic_SOURCES = daemonic.c verify.h
-daemonic_CFLAGS = -D_XOPEN_SOURCE=700 
 sampledaemon_SOURCES = sampledaemon.c
-sampledaemon_CFLAGS = -D_XOPEN_SOURCE=700 
+execpath_SOURCES = execpath.c verify.h
 
 .PHONY: emacsclean
 clean: emacsclean clean-am
