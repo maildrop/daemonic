@@ -41,14 +41,23 @@ char* get_absolute_path( const char* path );
 int pathconf_path_max( size_t* length )
 {
 #if defined( PATH_MAX )
-  return PATH_MAX;
+  const int pathconf_result = PATH_MAX ;
 #else /* defined( PATH_MAX ) */
   const int pathconf_result = pathconf("." , _PC_PATH_MAX );
+#endif /* defined( PATH_MAX ) */
   if( length ){
-    *length = (size_t)(( pathconf_result ) < 0 ? 4098 : pathconf_result );
+    const size_t require_size = (size_t)( ( pathconf_result < 0 ) ? 4096 : pathconf_result );
+    /* 
+       Before POSIX.1-2001 , we aren't guaranteed that PATH_MAX includees the terminating NULL byte('\0'),
+       Same goes for XPG3 ,
+       see APUE 2.5 Limits. , 2.5.5 Indeterminate RuntimeLimits. 
+    */
+    *length =  ( ( ( sysconf( _SC_VERSION ) < 200112L ) && ( sysconf( _SC_XOPEN_VERSION ) < 4 ) ) ?
+                 require_size + 1 :
+                 require_size  );
+    
   }
   return pathconf_result;
-#endif /* defined( PATH_MAX ) */
 }
 
 // なんか名前がいけてないな。
@@ -266,8 +275,26 @@ int fork_and_execvp( const char* path , char* const argv[] )
 }
 
 
+#include <locale.h>
+
 int main(int argc , char* argv[] )
 {
+  VERIFY( NULL != setlocale(LC_ALL , ""  ) );
+
+  printf( "sysconf( _SC_VERSION )       = %ldL (%ld)\n" ,sysconf( _SC_VERSION) , _POSIX_VERSION );
+  printf( "sysconf( _SC_XOPEN_VERSION ) = %ldL \n" , sysconf( _SC_XOPEN_VERSION ) );
+
+  {
+    // CHECK pathconf は 負の数を返すことがある。
+    size_t path_max = 
+      ( ( ( sysconf( _SC_VERSION ) < 200112L ) && ( sysconf( _SC_XOPEN_VERSION ) < 4 ) )?
+        ( pathconf( "/" , _PC_PATH_MAX ) + 1 ) :
+        ( pathconf( "/" , _PC_PATH_MAX ) ) );
+    (void) path_max ;
+  }
+  
+  
+  
   for( size_t i = 0 ; i < argc ; ++i ){
     {
       char *fullpath = get_absolute_path( argv[i] );
