@@ -472,12 +472,13 @@ int start_process( struct process_param param,  const char* path , char * argv[]
   {
     // パイプの準備をここでする。
     int child_pipe[2] = {-1,-1};
-    int intr_pipe[2] = {-1,-1};
+    int intr_pipe[2]  = {-1,-1};
+
     VERIFY( 0 == pipe( child_pipe ) );
     VERIFY( 0 == pipe( intr_pipe ) );
     
     sig_child_pipe = (sig_atomic_t)child_pipe[WRITE_SIDE];
-    sig_intr_pipe = (sig_atomic_t)intr_pipe[WRITE_SIDE];
+    sig_intr_pipe  = (sig_atomic_t)intr_pipe[WRITE_SIDE];
     
 #if defined( __GNUC__ )
     /* sig_atomic_t への代入が終わったので、ダメ押しで、メモリバリアを張っておく 
@@ -497,69 +498,68 @@ int start_process( struct process_param param,  const char* path , char * argv[]
     {
       struct sigaction sig_intr_act = {{0}};
       set_signal_handler( &sig_intr_act , sig_intr_handler );
-      
       VERIFY( 0 == sigaction( SIGINT , &sig_intr_act , &sig_intr_act_store ));
       VERIFY( 0 == sigaction( SIGHUP , &sig_intr_act , &sig_hup_act_store  ));
     }
     
     const pid_t child_pid = fork();
-    
-    if( child_pid < 0 ){
-      // fork() faild.
-      VERIFY( 0 == sigaction( SIGHUP , &sig_hup_act_store , NULL ) );
-      VERIFY( 0 == sigaction( SIGINT , &sig_intr_act_store , NULL) );        
-      VERIFY( 0 == sigaction( SIGCHLD , &sig_child_act_store , NULL ) );
-      VERIFY( 0 == close( child_pipe[WRITE_SIDE] ) );
-      VERIFY( 0 == close( child_pipe[READ_SIDE] ) );
-      VERIFY( 0 == close( intr_pipe[WRITE_SIDE] ) );
-      VERIFY( 0 == close( intr_pipe[READ_SIDE] ) );
-      VERIFY( 0 == close( param.logger_pipe ) );
-      return EXIT_FAILURE;
-    }else if( child_pid == 0 ){
-      // child process
-      VERIFY( 0 == sigaction( SIGHUP , &sig_hup_act_store , NULL ) );
-      VERIFY( 0 == sigaction( SIGINT , &sig_intr_act_store , NULL) );        
-      VERIFY( 0 == sigaction( SIGCHLD , &sig_child_act_store , NULL ) );
-      VERIFY( 0 == close( child_pipe[WRITE_SIDE] ) );
-      VERIFY( 0 == close( child_pipe[READ_SIDE] ) );
-      VERIFY( 0 == close( intr_pipe[WRITE_SIDE] ) );
-      VERIFY( 0 == close( intr_pipe[READ_SIDE] ));
-      
-      take_over_for_child_process( param.logger_pipe, path , argv );
-      
-      _exit( EXIT_FAILURE );
-    }else{
-      // parent process
-      VERIFY( 0 == close( param.logger_pipe ) );
-
-      char pidnum[16] = {0}; // 多分 6桁あればいいと思う
-      size_t len = snprintf( pidnum , sizeof( pidnum ) , "%d\n" , (int)(getpid()) );
-      if( 0 < len ){
-        ssize_t write_result;
-        if( len != ( write_result = write( fd , pidnum , len )) ){
-          perror("write( fd , pidnum , len )" );
-        }else{
-          VERIFY(0 == fdatasync( fd ) );
-        }
+    int result = EXIT_SUCCESS;
+    do{
+      if( -1 == child_pid ){
+        // fork() faild.
+        VERIFY( 0 == sigaction( SIGHUP , &sig_hup_act_store , NULL ) );
+        VERIFY( 0 == sigaction( SIGINT , &sig_intr_act_store , NULL) );        
+        VERIFY( 0 == sigaction( SIGCHLD , &sig_child_act_store , NULL ) );
+        VERIFY( 0 == close( child_pipe[WRITE_SIDE] ) );
+        VERIFY( 0 == close( child_pipe[READ_SIDE] ) );
+        VERIFY( 0 == close( intr_pipe[WRITE_SIDE] ) );
+        VERIFY( 0 == close( intr_pipe[READ_SIDE] ) );
+        result = EXIT_FAILURE;
+        break;
       }
-      
-      VERIFY( 0 == close( fd ) );
+      if( child_pid == 0 ){
+        // child process
+        VERIFY( 0 == sigaction( SIGHUP , &sig_hup_act_store , NULL ) );
+        VERIFY( 0 == sigaction( SIGINT , &sig_intr_act_store , NULL) );        
+        VERIFY( 0 == sigaction( SIGCHLD , &sig_child_act_store , NULL ) );
+        VERIFY( 0 == close( child_pipe[WRITE_SIDE] ) );
+        VERIFY( 0 == close( child_pipe[READ_SIDE] ) );
+        VERIFY( 0 == close( intr_pipe[WRITE_SIDE] ) );
+        VERIFY( 0 == close( intr_pipe[READ_SIDE] ));        
+        take_over_for_child_process( param.logger_pipe, path , argv );
+        _exit( EXIT_FAILURE );
+      }else{
+        // parent process
+        VERIFY( 0 == close( param.logger_pipe ) );
+        
+        char pidnum[16] = {0}; // 多分 6桁あればいいと思う
+        const size_t len = snprintf( pidnum , sizeof( pidnum ) , "%d\n" , (int)(getpid()) );
+        if( 0 < len ){
+          ssize_t write_result;
+          if( len != ( write_result = write( fd , pidnum , len )) ){
+            perror("write( fd , pidnum , len )" );
+          }else{
+            VERIFY(0 == fdatasync( fd ) );
+          }
+        }
+        
+        VERIFY( 0 == close( fd ) );
+        
+        host_daemonlize_process( child_pid , child_pipe[READ_SIDE] , intr_pipe[READ_SIDE] );
+        
+        VERIFY( 0 == unlink( pid_file_path ) );
+        result = EXIT_SUCCESS;
+      }
+    }while( (void)0, 0 );
 
-      
-      host_daemonlize_process( child_pid , child_pipe[READ_SIDE] , intr_pipe[READ_SIDE] );
-      
-      
-      VERIFY( 0 == unlink( pid_file_path ) );
-
-      VERIFY( 0 == sigaction( SIGHUP , &sig_hup_act_store , NULL ) );
-      VERIFY( 0 == sigaction( SIGINT , &sig_intr_act_store ,NULL) );        
-      VERIFY( 0 == sigaction( SIGCHLD , &sig_child_act_store ,NULL ) );
-      VERIFY( 0 == close( child_pipe[WRITE_SIDE] ) );
-      VERIFY( 0 == close( child_pipe[READ_SIDE] ) );
-      VERIFY( 0 == close( intr_pipe[WRITE_SIDE] ) );
-      VERIFY( 0 == close( intr_pipe[READ_SIDE] ));
-      return EXIT_SUCCESS;
-    }
+    VERIFY( 0 == sigaction( SIGHUP , &sig_hup_act_store , NULL ) );
+    VERIFY( 0 == sigaction( SIGINT , &sig_intr_act_store ,NULL) );        
+    VERIFY( 0 == sigaction( SIGCHLD , &sig_child_act_store ,NULL ) );
+    VERIFY( 0 == close( child_pipe[WRITE_SIDE] ) );
+    VERIFY( 0 == close( child_pipe[READ_SIDE] ) );
+    VERIFY( 0 == close( intr_pipe[WRITE_SIDE] ) );
+    VERIFY( 0 == close( intr_pipe[READ_SIDE] ));
+    return result;
   }
 }
 
@@ -640,7 +640,7 @@ int entry_point( int argc , char* argv[] )
   
   const pid_t logger_pid = fork();
   
-  if( logger_pid < 0 ){
+  if( -1 == logger_pid ){
     perror( "fork faild");
     VERIFY( 0 == close( logger_pipes[WRITE_SIDE] ));
     VERIFY( 0 == close( logger_pipes[READ_SIDE] ));
