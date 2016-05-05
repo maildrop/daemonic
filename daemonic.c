@@ -29,19 +29,19 @@
    イト以下の write(2) は atomic に行われることを利用してselect(2) を
    起こす方法
 
- */
+*/
 
 /*
-   このプログラムはもともと daemonlize という名前であった。
+  このプログラムはもともと daemonlize という名前であった。
 
-   TODO:
-   daemon(3) の使用を考慮
-   getopt に対応させるべきかどうか考える
-   子プロセスのプロセスのテスト
-   sigaction のところのシグナルの動作 ちゃんと規格に準拠しているかどうかのチェック
+  TODO:
+  daemon(3) の使用を考慮
+  getopt に対応させるべきかどうか考える
+  子プロセスのプロセスのテスト
+  sigaction のところのシグナルの動作 ちゃんと規格に準拠しているかどうかのチェック
    
-   構造的には 30点ぐらいだけど、とりあえずここまでにしておきましょう。
- */
+  構造的には 30点ぐらいだけど、とりあえずここまでにしておきましょう。
+*/
 
 /* _XOPEN_SOURCE=700 が定義されると _POSIX_C_SOURCE が 200809L で定義される */
 
@@ -55,6 +55,7 @@
 #include <signal.h>
 #include <syslog.h>
 #include <string.h>
+#include <locale.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -107,7 +108,7 @@ static_assert( sizeof(int) == sizeof(volatile sig_atomic_t ), "" );
    戻り値は、pathconf の戻り値を返す。
    @return リソースに制限がかけられていない場合には、-1 が戻る。そうでない場合には 相対パス名の最大長を返す
    @param length 相対パスの最大長として妥当と思われる値を入れて返す。
- */
+*/
 int pathconf_path_max( size_t* length );
 
 /**
@@ -117,7 +118,7 @@ int pathconf_path_max( size_t* length );
    @param path 絶対パスに変換を行うパス
    @return 絶対パス path に対応するファイルが存在しない場合には、NULL を返す。
    この戻り値は、malloc(3) で取得したメモリであるので、 free(3) で解放をしなければならない
- */
+*/
 char* get_absolute_path( const char* path );
 
 /** 
@@ -132,12 +133,12 @@ static void sig_intr_handler(int sig);
 
 /**
    sigaction に signal(2) 形式ののシグナルハンドラを設定する コンビニエンスメソッド
- */
+*/
 static void set_signal_handler( struct sigaction* sigact , void (* const signal_handler)(int) );
 
 /**
    start_process で使用するパラメータのパック
- */
+*/
 struct process_param;
 /**
    fork して、ターゲットプロセスの開始と、SIGINT をターゲットプロセスへ送るプロセスへ送る
@@ -147,18 +148,18 @@ struct process_param;
    @param param start_process へ渡すパラメータをパックした構造体
    @param path 実行ファイルへのパス
    @param argv execvl へ渡す引数の配列。終端を表すために、配列の最後の要素は、NULL で終端されていなければならい
- */
+*/
 int start_process( struct process_param param,  const char* path , char * argv[]);
 
 /**
    最終的な 子プロセスを execvp(2) で実行する。
    この関数は、制御を戻さない
- */
+*/
 void take_over_for_child_process( int logger_fd , const char* path , char* argv[] );
 
 /** 
     実質的なエントリーポイント
- */
+*/
 int entry_point( int argc , char* argv[] );
 
 /************************* 実装 **************************/
@@ -235,7 +236,7 @@ static void sig_intr_handler(int sig)
 /**
    最終的な 子プロセスを execvp(2) で実行する。
    この関数は、制御を戻さない
- */
+*/
 void take_over_for_child_process( int logger_fd , const char* path , char* argv[] )
 {
   int null_in = open( "/dev/null" , O_RDONLY );
@@ -258,7 +259,7 @@ void take_over_for_child_process( int logger_fd , const char* path , char* argv[
 
 /**
    sigaction に signal(2) 形式ののシグナルハンドラを設定する コンビニエンスメソッド
- */
+*/
 static void set_signal_handler( struct sigaction* sigact , void (* const signal_handler)(int) )
 {
   assert( NULL != sigact );
@@ -272,7 +273,7 @@ static void set_signal_handler( struct sigaction* sigact , void (* const signal_
 /**
    select(2) で fd_set を使用する際に、ファイルディスクリプタの最大値に+1をした数が必要なので
    それを算出するためのラッピング構造体
- */
+*/
 typedef struct fd_set_wrap_tag{
   /** ファイルディスクリプタ集合へのポインタ */
   fd_set * const fds; 
@@ -287,7 +288,7 @@ typedef struct fd_set_wrap_tag{
    最大のファイルディスクリプタに１を加えたものを返す。
    
    @return 引数 readfds , writefds ,  exceptfds の三つの ファイルディスクリプタ集合のうち最大のファイルディスクリプタに１を加えたものを返す。 
- */
+*/
 int fd_set_wrap_get_maximum_fd( const fd_set_wrap* readfds , const fd_set_wrap* writefds , const fd_set_wrap* exceptfds )
 {
   int result = -1;
@@ -311,9 +312,9 @@ int fd_set_wrap_get_maximum_fd( const fd_set_wrap* readfds , const fd_set_wrap* 
 }
 
 /**
-  fd_set_wrap が指し示す ファイルディスクリプタ集合を消去して、一つも含まれていない状態にする。
-  FD_ZERO を fd_set_wrap に合わせた関数
- */
+   fd_set_wrap が指し示す ファイルディスクリプタ集合を消去して、一つも含まれていない状態にする。
+   FD_ZERO を fd_set_wrap に合わせた関数
+*/
 void fd_set_wrap_clear( fd_set_wrap* fds )
 {
   assert( fds );
@@ -324,7 +325,7 @@ void fd_set_wrap_clear( fd_set_wrap* fds )
 }
 
 /**
-  引数 ファイルディスクリプタ fd  を  fd_set_wrap が指し示すファイルディスクリプタ集合から消去する。
+   引数 ファイルディスクリプタ fd  を  fd_set_wrap が指し示すファイルディスクリプタ集合から消去する。
 */
 void fd_set_wrap_set( int fd, fd_set_wrap* fds )
 {
@@ -343,7 +344,7 @@ void fd_set_wrap_set( int fd, fd_set_wrap* fds )
    @return 成功した時には、dst のポインタ値が戻される。
    @param dst コピー先の fd_set_wrap へのポインタ ( NULL は許容されない )
    @param src コピー元の fd_set_wrap へのポインタ
- */
+*/
 fd_set_wrap* fd_set_wrap_copy(fd_set_wrap* dst ,const fd_set_wrap *src){
   assert( dst );
   assert( dst->fds );
@@ -368,7 +369,7 @@ fd_set_wrap* fd_set_wrap_copy(fd_set_wrap* dst ,const fd_set_wrap *src){
    @param child_pid 子プロセスのプロセスID 
    @param sigchld_selfpipe SIGCHLD を受けた時に読み込み可能になるパイプのファイルディスクリプタ self-pipe テクニックを使う
    @param sigint_selfpipe SIGINT を受けた時に読み込み可能になるパイプのファイルディスクリプタ self-pipe テクニックを使う
- */
+*/
 int host_daemonlize_process(pid_t const child_pid ,int const sigchld_selfpipe ,int const sigint_selfpipe)
 {
   /*
@@ -455,28 +456,71 @@ struct process_param{
    @param param start_process へ渡すパラメータをパックした構造体
    @param path 実行ファイルへのパス
    @param argv execvl へ渡す引数の配列。終端を表すために、配列の最後の要素は、NULL で終端されていなければならい
- */
+*/
 int start_process( struct process_param param,  const char* path , char * argv[])
 {
   /* 自分自身のPID を 書き出して、kill -INT に備える ための PID ファイルを作成する */
   /* 書き出すファイルへのパス */
-  const char* pid_file_path = param.pid_file_path;
-
-  /* PID を 書き出すファイルへのファイルディスクリプタ */
-  int fd = open( pid_file_path  , O_WRONLY | O_EXCL | O_CREAT , S_IRUSR | S_IWUSR | S_IWOTH );
-  if( fd < 0 ){
-    perror( "open( pid_file_path  , O_WRONLY | O_EXCL | O_CREAT , S_IRUSR | S_IWUSR | S_IWOTH )");
-    return EXIT_FAILURE;
+  const char* const pid_file_path = param.pid_file_path;
+  {
+    /* PID を 書き出すファイルへのファイルディスクリプタ */
+    int fd = open( pid_file_path  , O_WRONLY | O_EXCL | O_CREAT , S_IRUSR | S_IWUSR | S_IWOTH );
+    if( fd < 0 ){
+      perror( "open( pid_file_path  , O_WRONLY | O_EXCL | O_CREAT , S_IRUSR | S_IWUSR | S_IWOTH )");
+      return EXIT_FAILURE;
+    }else{
+      char pidnum[16] = {0}; // 多分 6桁あればいいと思う
+      const size_t len = snprintf( pidnum , sizeof( pidnum ) , "%d\n" , (int)(getpid()) );
+      if( 0 < len ){
+        ssize_t write_result;
+        if( len != ( write_result = write( fd , pidnum , len )) ){
+          perror("write( fd , pidnum , len )" );
+        }else{
+          VERIFY(0 == fdatasync( fd ) );
+        }
+      }
+      VERIFY( 0 == close( fd ) );
+    }
   }
 
-  {
-    // パイプの準備をここでする。
-    int child_pipe[2] = {-1,-1};
-    int intr_pipe[2]  = {-1,-1};
+  int result = EXIT_SUCCESS;
 
+  /* シグナルマスクして fork() してから、
+     子 シグナルマスクの解除
+     親 sigaction() して、シグナルマスクの解除 処置後に sigaction()
+     したほうが多分よい  */
+  // シグナルを禁止する。
+  sigset_t oldset = {{0}};
+  sigset_t sigset = {{0}};
+  sigemptyset( &oldset );
+  sigemptyset( &sigset );
+  VERIFY( 0 == sigaddset(&sigset, SIGCHLD ) );
+
+  if( -1 == sigprocmask( SIG_BLOCK , &sigset, &oldset ) ){
+    return EXIT_FAILURE;
+  }
+  
+  const pid_t child_pid = fork();
+  if( -1 == child_pid ){
+    //const int fork_errno = errno;
+    perror( "fork" );
+    VERIFY( 0 == sigprocmask( SIG_SETMASK , &oldset , NULL ) );
+    result = EXIT_FAILURE;
+  }else if( 0 == child_pid ){
+    VERIFY( 0 == sigprocmask( SIG_SETMASK , &oldset , NULL ) );
+    take_over_for_child_process( param.logger_pipe, path , argv );
+    _exit( EXIT_FAILURE );
+  }else{
+    
+    /* このパイプは、親プロセスの中で使うのみである。 */
+    int child_pipe[2] = {-1,-1}; /* SIGCHLD をうける self-pipe */
+    int intr_pipe[2]  = {-1,-1}; /* SIGINTR をうける self-pipe */
+    
     VERIFY( 0 == pipe( child_pipe ) );
     VERIFY( 0 == pipe( intr_pipe ) );
     
+    /* int は、 sig_atomic_t に納まる */
+    struct type_static_assert{ int expression[ sizeof( sig_atomic_t ) <=  sizeof(int) ? 1 : -1 ]; };
     sig_child_pipe = (sig_atomic_t)child_pipe[WRITE_SIDE];
     sig_intr_pipe  = (sig_atomic_t)intr_pipe[WRITE_SIDE];
     
@@ -486,10 +530,11 @@ int start_process( struct process_param param,  const char* path , char * argv[]
     __sync_synchronize(); 
 #endif /* defined( __GNUC__ ) */
     
-    // パイプの準備が終わったので、シグナルハンドラの準備
+    /* シグナルハンドラの準備 */
     struct sigaction sig_child_act_store = {{0}};
     struct sigaction sig_intr_act_store = {{0}};
     struct sigaction sig_hup_act_store = {{0}};
+    struct sigaction sig_term_act_store = {{0}};
     {
       struct sigaction sig_child_act = {{0}};
       set_signal_handler( & sig_child_act , sig_child_handler );
@@ -500,68 +545,33 @@ int start_process( struct process_param param,  const char* path , char * argv[]
       set_signal_handler( &sig_intr_act , sig_intr_handler );
       VERIFY( 0 == sigaction( SIGINT , &sig_intr_act , &sig_intr_act_store ));
       VERIFY( 0 == sigaction( SIGHUP , &sig_intr_act , &sig_hup_act_store  ));
+      VERIFY( 0 == sigaction( SIGTERM, &sig_intr_act , &sig_term_act_store )); 
     }
+    VERIFY( 0 == sigprocmask( SIG_SETMASK , &oldset , NULL ) );
     
-    const pid_t child_pid = fork();
-    int result = EXIT_SUCCESS;
-    do{
-      if( -1 == child_pid ){
-        // fork() faild.
-        VERIFY( 0 == sigaction( SIGHUP , &sig_hup_act_store , NULL ) );
-        VERIFY( 0 == sigaction( SIGINT , &sig_intr_act_store , NULL) );        
-        VERIFY( 0 == sigaction( SIGCHLD , &sig_child_act_store , NULL ) );
-        VERIFY( 0 == close( child_pipe[WRITE_SIDE] ) );
-        VERIFY( 0 == close( child_pipe[READ_SIDE] ) );
-        VERIFY( 0 == close( intr_pipe[WRITE_SIDE] ) );
-        VERIFY( 0 == close( intr_pipe[READ_SIDE] ) );
-        result = EXIT_FAILURE;
-        break;
-      }
-      if( child_pid == 0 ){
-        // child process
-        VERIFY( 0 == sigaction( SIGHUP , &sig_hup_act_store , NULL ) );
-        VERIFY( 0 == sigaction( SIGINT , &sig_intr_act_store , NULL) );        
-        VERIFY( 0 == sigaction( SIGCHLD , &sig_child_act_store , NULL ) );
-        VERIFY( 0 == close( child_pipe[WRITE_SIDE] ) );
-        VERIFY( 0 == close( child_pipe[READ_SIDE] ) );
-        VERIFY( 0 == close( intr_pipe[WRITE_SIDE] ) );
-        VERIFY( 0 == close( intr_pipe[READ_SIDE] ));        
-        take_over_for_child_process( param.logger_pipe, path , argv );
-        _exit( EXIT_FAILURE );
-      }else{
-        // parent process
-        VERIFY( 0 == close( param.logger_pipe ) );
-        
-        char pidnum[16] = {0}; // 多分 6桁あればいいと思う
-        const size_t len = snprintf( pidnum , sizeof( pidnum ) , "%d\n" , (int)(getpid()) );
-        if( 0 < len ){
-          ssize_t write_result;
-          if( len != ( write_result = write( fd , pidnum , len )) ){
-            perror("write( fd , pidnum , len )" );
-          }else{
-            VERIFY(0 == fdatasync( fd ) );
-          }
-        }
-        
-        VERIFY( 0 == close( fd ) );
-        
-        host_daemonlize_process( child_pid , child_pipe[READ_SIDE] , intr_pipe[READ_SIDE] );
-        
-        VERIFY( 0 == unlink( pid_file_path ) );
-        result = EXIT_SUCCESS;
-      }
-    }while( (void)0, 0 );
-
+    host_daemonlize_process( child_pid , child_pipe[READ_SIDE] , intr_pipe[READ_SIDE] );
+    
     VERIFY( 0 == sigaction( SIGHUP , &sig_hup_act_store , NULL ) );
     VERIFY( 0 == sigaction( SIGINT , &sig_intr_act_store ,NULL) );        
     VERIFY( 0 == sigaction( SIGCHLD , &sig_child_act_store ,NULL ) );
+    VERIFY( 0 == sigaction( SIGTERM , &sig_term_act_store , NULL ));
+    sig_child_pipe = (sig_atomic_t)-1;
+    sig_intr_pipe  = (sig_atomic_t)-1;
+#if defined( __GNUC__ )
+    /* sig_atomic_t への代入が終わったので、ダメ押しで、メモリバリアを張っておく 
+       必要は無いはずである。*/
+    __sync_synchronize(); 
+#endif /* defined( __GNUC__ ) */
     VERIFY( 0 == close( child_pipe[WRITE_SIDE] ) );
     VERIFY( 0 == close( child_pipe[READ_SIDE] ) );
     VERIFY( 0 == close( intr_pipe[WRITE_SIDE] ) );
     VERIFY( 0 == close( intr_pipe[READ_SIDE] ));
-    return result;
+    result = EXIT_SUCCESS;
   }
+  VERIFY( 0 == unlink( pid_file_path ) );
+  return result;
 }
+
 
 void exec_logger_process( int readfd )
 {
@@ -720,5 +730,6 @@ int entry_point( int argc , char* argv[] )
 
 int main(int argc, char* argv[] )
 {
+  VERIFY( NULL != setlocale(LC_ALL, "" ) );
   return entry_point( argc , argv );
 }
