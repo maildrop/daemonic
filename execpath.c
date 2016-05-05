@@ -31,10 +31,45 @@ enum{
   WRITE_SIDE = 1,
 };
 
+/**
+   pathの最大長( 通常は、PATH_MAX の値 ) を問い合わせる
+   注意する点は二点あって、 
+   1) pathconf( "." , _PC_PATH_MAX ) は無制限を意味する負の値を返すことがある
+   2) POSIX.1-2001 以前は、終端の NULL文字について言及されていないので、余裕をもってNULL文字分を追加する必要がある。
+   
+
+   @return pathconf(3) の戻り値の値 無制限を意味する -1 が返されることがある。
+   @param lentgh パスの最大長あるいは最大値として適当な値を戻す size_t へのポインタ この値には、NULL 文字が含まれた値が返る。
+   この値は、malloc に食わせることを目的とする。pathconf が実際に無制限を意味する -1を返したかどうかの確認は、
+   戻り値が -1 を返したかどうかを確認すること。
+ */
 int pathconf_path_max( size_t* length );
 
-/************************************************
+/**
+   正規化されたパスを返す。
+   この戻り値は、malloc(3) で確保されたヒープを指しているので、free(3)で解放する必要がある。
+ */
+char* get_canonical_path( const char* path );
 
+/**
+   引数 fd で渡された ファイルディスクリプタに対して、
+   O_CLOEXEC を追加で付与する。
+   戻り値は、成功時には、0 を戻し、失敗時には、-1 になる。
+   失敗して、-1 を返した時には、 errno に失敗の理由が保持される。
+ */
+int fcntl_set_close_exec( int fd );
+
+/**
+   perror の ファイルディスクリプタとエラー番号指定したバージョン
+   @return 成功時には 0 を返す、失敗時はそれ以外を返す。 失敗時の理由は errno に保存される。
+   @param fd 書き込み先のファイルディスクリプタ
+   @param errnum エラー番号
+   @param msg 追加のメッセージ
+ */
+int fdperror( int fd ,int errnum ,const char* msg );
+
+/************************************************
+ * 実装
  ************************************************/
 
 int pathconf_path_max( size_t* length )
@@ -59,53 +94,33 @@ int pathconf_path_max( size_t* length )
   return pathconf_result;
 }
 
-/* こっちのが名前は正確っぽい */
-char* get_canonical_path( const char* path ){
+char* get_canonical_path( const char* path )
+{
   size_t path_max = 0; /* PATH_MAX の値が保持されるsize_t 値 */
 
   const int pathconf_result = pathconf_path_max( &path_max );
   assert( 0 < pathconf_result );
   (void)( pathconf_result );
-
   
   if( path_max < 0 ){ // 取得に失敗したので
     /* pathconf_path_max() が設定した errno をそのまま使う */
     return NULL;
   }
   
-  int err = 0; /* errno の一時的保存場所 */
-
-  errno = 0; /* malloc に備えて 0 を代入しておく */
-
-  /* pathconf_path_max() は、終端NULL文字を含む数を返ので */
+  /* pathconf_path_max() は、終端NULL文字を含む数をかえす */
   char* canonical_path = malloc( sizeof(char)  * path_max );
   if( canonical_path == NULL ){ /* malloc に失敗した */
     return NULL;
   }
 
-  /* realpath に備えて、 エラー番号を クリアしておく */
-  errno = 0; 
-  char* realpath_result = realpath( path , canonical_path );
-  /* realpath() の戻り値が、 引数 canonical_path と異なる場合
-     例えば、 NULL が戻ってきた場合は NULL を返すので、
-     canonical_path を 解放して、realpath の戻り値を
-     canonical_path に入れてそれを返す */
-  if( realpath_result != canonical_path ){
-    err = errno; /* realpath() の戻すエラー番号 */
+  if( NULL == realpath( path , canonical_path ) ){
+    const int errno_realpath = errno; 
     free( canonical_path );
-    canonical_path = realpath_result;
+    errno = errno_realpath;
+    return NULL;
   }
-  errno = err;
   return canonical_path;
 }
-
-/* 
-   引数 fd で渡された ファイルディスクリプタに対して、
-   O_CLOEXEC を追加で付与する。
-   戻り値は、成功時には、0 を戻し、失敗時には、-1 になる。
-   失敗して、-1 を返した時には、 errno に失敗の理由が保持される。
- */
-int fcntl_set_close_exec( int fd );
 
 int fcntl_set_close_exec( int fd )
 { 
@@ -133,6 +148,72 @@ int fcntl_set_close_exec( int fd )
   return fcntl_result;
 }
 
+int fdperror( int fd ,int errnum ,const char* msg )
+{
+  assert( 0 <= fd );
+  if( NULL == msg ){
+    static const char emptystr[] = "";
+    msg = emptystr;
+  }
+  const int errno_store = errno;
+  errno = 0;
+#if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE
+
+  size_t error_message_len = 1024;
+  char*  error_message = malloc( sizeof( char )* error_message_len );
+  if( error_message ){
+    for(;;){
+      /* strerror_r は仕様が特殊で、成功時に 0 を返し、失敗時には 
+         glibc 2.13 より前では、-1を戻し、errno を設定して戻る
+         glibc 2.13 より後では、「戻り値に」 エラー番号を正の値として返す。 */
+      const int strerr_errno = strerror_r( errnum , error_message , error_message_len ) ;
+      if( 0 == strerr_errno ){ // 成功
+        break;  
+      }else{ // 失敗
+        assert( ERANGE == ( strerr_errno == -1 ? errno : strerr_errno ) );
+        if( ERANGE == ( strerr_errno == -1 ? errno : strerr_errno ) ){
+          error_message_len *= 2;
+          char * const realloc_error_message = realloc( error_message , error_message_len);
+          const int realloc_errno = errno;
+          VERIFY( realloc_error_message );
+          if( realloc_error_message ){
+            error_message = realloc_error_message;
+          }else{
+            free( error_message );
+            errno = realloc_errno;
+            return -1;
+          }
+        }else{
+          const int store = errno;
+          free( error_message );
+          errno = ( strerr_errno == -1 ? store : strerr_errno );
+          return -1;
+        }
+      }
+    }
+    
+    static const char space[] = " ";
+    static const char terminate[] = "\n";
+    const size_t write_size =  strlen( error_message ) + strlen( space ) + strlen( msg ) +  strlen( terminate );
+    const size_t bufsize = write_size+1;
+    char* buf = malloc( sizeof( char ) * bufsize );
+    if( buf ){
+      VERIFY( buf == strncpy( buf , error_message, bufsize ) );
+      VERIFY( buf == strncat( buf , space , bufsize - strlen( buf ) ));
+      VERIFY( buf == strncat( buf , msg , bufsize-strlen( buf ) ) );
+      VERIFY( buf == strncat( buf , terminate , bufsize - strlen( buf ) ));
+      assert( write_size == strlen( buf ) );
+      VERIFY( write_size == write( fd , buf , write_size ));
+      free( buf );
+    }
+    free( error_message );
+  }
+#else /* (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE */
+#error use strerror_r(3) XSI-comiliant version. see strerror_r(3) manual.
+#endif /* (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE */
+  errno = errno_store;
+  return 0;
+}
 
 /**
    fork_and_exec{v,vp} の実装本体
@@ -140,11 +221,6 @@ int fcntl_set_close_exec( int fd )
 static pid_t fork_and_exec( int (*exec)( const char* , char * const [] ) , const char* path ,  char* const argv[] );
 static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , const char* path , char* const argv[] );
 
-pid_t sample_fork_and_exec(){
-  char* argv[] = {"/bin/true" , NULL };
-  //TODO 標準入出力の処理 とシグナルの処理 を追加する
-  return fork_and_exec( execv , "/bin/true" , argv );
-}
 
 static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , const char* path , char* const argv[] )
 {
@@ -202,55 +278,57 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
     あれ？ 回数数えるだけでいいんだから、self-pipe 使う必要なくない？ 
   */
 #if 0 /* 多分こんなかんじ */
-  int sigchldpipefd[2] = {-1,-1}; // SIGCHLD が発生した時にかきこまれる
-  // pselect でまつのかな？
   do{
     int suspended_sigchld_pipefd[2] = {-1,-1};
     if( 0 == pipe( suspended_sigchld_pipefd ) ){
+      assert( -1 != suspended_sigchld_pipefd[WRITE_SIDE] ); 
+      assert( -1 != suspended_sigchld_pipefd[READ_SIDE]  );
+
       for(;;){
         int status;
         const pid_t waitpid_result = waitpid( pid , &status , WNOHANG );
+        if( -1 == waitpid_result && EINTR == errno ){
+          /* waitpid(2) でプロセスが止まっているときに、シグナルを受信し、waitpid() が制御を戻した */
+          continue;
+        }
+        
         if( -1 == waitpid_result ){ // エラーが発生した。
           const int waitpid_errno = errno; // waitpid() が -1 を返して エラーを通知してきたときの errno 
           VERIFY( EINVAL != waitpid_errno );
           VERIFY( ECHILD != waitpid_errno );
-          if( EINTR == waitpid_errno ){
-            /* waitpid(2) でプロセスが止まっているときに、シグナルを受信し、waitpid() が制御を戻した */
-            continue; 
-          }
+          abort(); // 関知しないエラー？ どうなっているのか確認する必要がある。
         }else if( waitpid_result == pid  ){  // 当該のプロセスが終了した。
-          
-          /************************************************/
-          /******  TODO シグナルハンドラをもとに外す ******/
-          /******  わすれないようにしましょう        ******/
-          /************************************************/
-          
           // ファイルディスクリプタのチェック
-          assert( -1 != suspended_sigchld_pipefd[WRITE_SIDE] ); 
-          assert( -1 != suspended_sigchld_pipefd[READ_SIDE]  );
-          
-          close( suspended_sigchld_pipefd[WRITE_SIDE] ); // 書き込み側を閉じて
-          suspended_sigchld_pipefd[WRITE_SIDE] = -1; /* 安全のため */
-          
-          // サスペンドされたシグナルの回数分 raise する
-          char b = 0;
-          while( 0 < read( suspended_sigchld_pipefd[READ_SIDE] , &b , sizeof( b ) ) ){
-            if( 0 != raise( SIGCHLD ) ){
-              break; // raise(3) に失敗した時に注意 まだ、読み取ってないSIGCHLD がありますよ
-            }
-          }
-          close( suspended_sigchld_pipefd[READ_SIDE]  ); // 読み込み側も閉じる
-          suspended_sigchld_pipefd[READ_SIDE] = -1; /* 安全のため */
-          
+          break;
         }else if( 0 == waitpid_result ){ // 当該のプロセスはまだ生きている
           // ということは、後で、raise(SIGCHLD) を発行する必要がある。
           char b = 0;
           assert( -1 != suspended_sigchld_pipefd[ WRITE_SIDE ] );
           write( suspended_sigchld_pipefd[WRITE_SIDE] , &b , sizeof( b ) );
         }
-        break;
       } // end of for(;;)
+
+      /************************************************/
+      /******  TODO シグナルハンドラをもとに外す ******/
+      /******  わすれないようにしましょう        ******/
+      /************************************************/
+
+      
+      VERIFY( 0 == close( suspended_sigchld_pipefd[WRITE_SIDE] )) ; // 書き込み側を閉じる
+      suspended_sigchld_pipefd[WRITE_SIDE] = -1; /* パイプのファイルディスクリプタ が後で閉じたことを確認するために-1 を指定しておく*/
+      
+      // サスペンドされたシグナルの回数分 raise する
+      char b = 0;
+      while( 0 < read( suspended_sigchld_pipefd[READ_SIDE] , &b , sizeof( b ) ) ){ // おかしい。 -1 を返してきたときのことが考えられていない。
+        if( 0 != raise( SIGCHLD ) ){
+          break; // raise(3) に失敗した時に注意 まだ、読み取ってないSIGCHLD がありますよ
+        }
+      }
+      
+      close( suspended_sigchld_pipefd[READ_SIDE]  ); // 読み込み側も閉じる
+      suspended_sigchld_pipefd[READ_SIDE] = -1; /* 安全のため */
     }
+
     assert( -1 == suspended_sigchld_pipefd[WRITE_SIDE] );
     assert( -1 == suspended_sigchld_pipefd[READ_SIDE] );
 
@@ -261,13 +339,13 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
       VERIFY( 0 == close( suspended_sigchld_pipefd[READ_SIDE] ) );
     }
   }while( (void)0, 0 ); // end of do-while 
-#endif
-    /* 多分こんなかんじ */
-    
+#endif /* 多分こんなかんじ */
+  
   if( 0 == pid ){
-    VERIFY( 0 == close( pipefd[ READ_SIDE ] ) );
     /* 子プロセスの シグナルブロックを解除する */
     VERIFY( 0 == sigprocmask( SIG_SETMASK , &oldset , NULL ) );
+
+    VERIFY( 0 == close( pipefd[ READ_SIDE ] ) );
     if( -1 == exec( path , argv) ){
       /* execl 失敗した時には、失敗した理由 errno を パイプに書き込んで終了する。*/
       int b = errno;
@@ -276,15 +354,15 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
       _exit(EXIT_SUCCESS);
     }
   }else{
-    VERIFY( 0 == close( pipefd[ WRITE_SIDE ] ) );
     /* TODO sigaction() */
 
     /* 親プロセスのシグナルブロックを解除する */
     VERIFY( 0 == sigprocmask( SIG_SETMASK , &oldset , NULL ) );
+    VERIFY( 0 == close( pipefd[ WRITE_SIDE ] ) );
     for(;;){
       /** select で、処理する必要がある */
-      int b = 0;
-      const ssize_t read_v = read( pipefd[READ_SIDE] , &b  , sizeof(b) ); 
+      int read_errno = 0; /* パイプから読み取ったエラー番号値 */
+      const ssize_t read_v = read( pipefd[READ_SIDE] , &read_errno  , sizeof(read_errno) ); 
       // read_v は 負を返す場合があるのに注意
       if( -1 == read_v ){
         if( EINTR == errno ){
@@ -296,7 +374,7 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
       
       if( read_v == 0 ){
         errno = 0;
-      }else if( read_v == sizeof( b ) ){
+      }else if( read_v == sizeof( read_errno ) ){
         /* exec に失敗した時には、関数内で プロセスの回収を行う */
         {
           int status = 0;
@@ -304,41 +382,12 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
           VERIFY( EXIT_SUCCESS == status );
         }
         /* エラーメッセージの出力 */
-#if defined(  _GNU_SOURCE )
-#error use strerror_r(3) XSI-comiliant version. see strerror_r(3) manual.
-#endif/* defined(  _GNU_SOURCE ) */
-        char err_message[80];
-        if( 0 == strerror_r( b , err_message , sizeof( err_message ) / sizeof( err_message[0] ) ) ){
-          do{
-            {
-              if( -1 == write( STDERR_FILENO , err_message , strlen( err_message ) ) ){
-                break;
-              }
-            }
-            {
-              const char space[] = " ";
-              if( -1 == write( STDERR_FILENO , space , strlen( space ) ) ){
-                break;
-              }
-            }
-            {
-              if( -1 == write( STDERR_FILENO , path , strlen( path ) ) ){
-                break;
-              }
-            }
-            {
-              const char terminate[] = "\n";
-              if( -1 == write( STDERR_FILENO , terminate , strlen( terminate ) ) ){
-                break;
-              }
-            }
-          }while( (void)0,0 );
-          sync();
-        }
-        errno = b;
+        fdperror( STDERR_FILENO , read_errno, "exec()" );
+        errno = read_errno;
       } /* end of if ( read_v == sizeof( b ) ) */
       break;
     } /* end of for(;;) */
+    
     // TODO  sigaction を元に戻す
     // raise() を使用して、 suspend された sigaction をもっかい投げる 
     VERIFY( 0 == close( pipefd[ READ_SIDE ] ) );
@@ -415,13 +464,19 @@ int fork_and_execvp( const char* path , char* const argv[] )
 
 #include <locale.h>
 
+pid_t sample_fork_and_exec(){
+  char* argv[] = {"/bin/true" , NULL };
+  //TODO 標準入出力の処理 とシグナルの処理 を追加する
+  return fork_and_exec( execv , "/bin/true" , argv );
+}
+
 int main(int argc , char* argv[] )
 {
   VERIFY( NULL != setlocale(LC_ALL , ""  ) );
 
   printf( "sysconf( _SC_VERSION )       = %ldL (%ld)\n" ,sysconf( _SC_VERSION) , _POSIX_VERSION );
   printf( "sysconf( _SC_XOPEN_VERSION ) = %ldL \n" , sysconf( _SC_XOPEN_VERSION ) );
-
+  VERIFY( 0 == fdperror( STDERR_FILENO , 0 , "fdperror()" ) );
   {
     // CHECK pathconf は 負の数を返すことがある。
     size_t path_max = 
@@ -430,8 +485,6 @@ int main(int argc , char* argv[] )
         ( pathconf( "/" , _PC_PATH_MAX ) ) );
     (void) path_max ;
   }
-  
-  
   
   for( size_t i = 0 ; i < argc ; ++i ){
     {
@@ -497,91 +550,59 @@ int main(int argc , char* argv[] )
      */
     int fcntl_result = -1;
     VERIFY( 0 == ( fcntl_result = fcntl_set_close_exec( pipefd[ WRITE_SIDE ] ) ));
+    if( 0 != fcntl_result ){
+      perror( "fcntl()" );
+      abort();
+    }
 
-    if( 0 == fcntl_result ){
-      const char path[] = "/bin/true";
-      const pid_t pid = fork();
-      switch( pid ){
-      case -1 :
-        {
-          abort();
-          break;
+    const char path[] = "/bin/true";
+    const pid_t pid = fork();
+    switch( pid ){
+    case -1 :
+      {
+        abort();
+        break;
+      }
+    case 0:
+      {
+        if( 0 != close( pipefd[ READ_SIDE ] )  ){
+          perror( "close()" );
         }
-      case 0:
-        {
-          if( 0 != close( pipefd[ READ_SIDE ] )  ){
-            perror( "close()" );
-          }
-          if( -1 == execl( path , path , NULL ) ){
-            /* execl 失敗した時には、失敗した理由 errno を パイプに書き込んで終了する。*/
-            int b = errno;
-            VERIFY( sizeof( b ) == write( pipefd[WRITE_SIDE] , &b , sizeof( b ) ) );
-            VERIFY( 0 == close( pipefd[WRITE_SIDE] ) );
-            _exit(EXIT_SUCCESS);
-          }
-          break;
+        if( -1 == execl( path , path , NULL ) ){
+          /* execl 失敗した時には、失敗した理由 errno を パイプに書き込んで終了する。*/
+          int b = errno;
+          VERIFY( sizeof( b ) == write( pipefd[WRITE_SIDE] , &b , sizeof( b ) ) );
+          VERIFY( 0 == close( pipefd[WRITE_SIDE] ) );
+          _exit(EXIT_SUCCESS);
         }
-      default:
-        {
-          if( 0 != close( pipefd[ WRITE_SIDE ] ) ){
-            perror( "close()" );
-          }
-          do{
-            // select で、
-            int b = 0;
-            const ssize_t read_v = read( pipefd[READ_SIDE] , &b  , sizeof(b) );
-            //printf( "read_v = %zd\n" , read_v );
-            if( read_v == sizeof( b ) ){
-              /* exec に失敗した時には、関数内で プロセスの回収を行う */
-              {
-                int status = 0;
-                VERIFY( pid == waitpid( pid , &status , 0 ) );
-                VERIFY( EXIT_SUCCESS == status );
+        break;
+      }
+    default:
+      {
+        if( 0 != close( pipefd[ WRITE_SIDE ] ) ){
+          perror( "close()" );
+        }
+        do{
+          // select で、
+          int b = 0;
+          const ssize_t read_v = read( pipefd[READ_SIDE] , &b  , sizeof(b) );
+          //printf( "read_v = %zd\n" , read_v );
+          if( read_v == sizeof( b ) ){
+            { // 終了ステータスを得る。
+              int status = 0;
+              VERIFY( pid == waitpid( pid , &status , 0 ) );
+              if( WIFEXITED( status ) ){
+                VERIFY( EXIT_SUCCESS == WEXITSTATUS(status) );
               }
-              /* エラーメッセージの出力 */
-#if defined(  _GNU_SOURCE )
-#error use strerror_r(3) XSI-comiliant version. see strerror_r(3) manual.
-#endif/* defined(  _GNU_SOURCE ) */
-              char err_message[80];
-              if( 0 == strerror_r( b , err_message , sizeof( err_message ) / sizeof( err_message[0] ) ) ){
-                do{
-                  {
-                    if( -1 == write( STDERR_FILENO , err_message , strlen( err_message ) ) ){
-                      break;
-                    }
-                  }
-                  {
-                    const char space[] = " ";
-                    if( -1 == write( STDERR_FILENO , space , strlen( space ) ) ){
-                      break;
-                    }
-                  }
-                  {
-                    if( -1 == write( STDERR_FILENO , path , strlen( path ) ) ){
-                      break;
-                    }
-                  }
-                  {
-                    const char terminate[] = "\n";
-                    if( -1 == write( STDERR_FILENO , terminate , strlen( terminate ) ) ){
-                      break;
-                    }
-                  }
-                }while( (void)0,0 );
-                sync();
-              }
-              errno = b;
             }
-          }while( (void)0, 0 );
-          VERIFY( 0 == close( pipefd[ READ_SIDE ] ) );
-          break;
-        }
+            fdperror( STDERR_FILENO , b , "" );
+            errno = b;
+          }
+        }while( (void)0, 0 );
+        VERIFY( 0 == close( pipefd[ READ_SIDE ] ) );
+        break;
       }
     }
-    
   }
-  
   return EXIT_SUCCESS;
 }
-
- 
