@@ -34,6 +34,11 @@
 # Debug files
 *.dSYM/
 
+GPATH
+GRTAGS
+GSYMS
+GTAGS
+
 # Autotools generated files
 Makefile
 autom4te.cache
