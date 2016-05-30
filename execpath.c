@@ -224,13 +224,21 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
 
 /**
    fork して、exec する
-
+   失敗時には、-1 を返し、理由を errno に保存する。
  */
 static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , const char* path , char* const argv[] )
 {
-  int pipefd[2] = { -1 , -1 };
+  /* この関数の戻り値 */
+  pid_t result = -1;
+  
+  /* execファミリを呼び出した後の状態を確認するためのself-pipe */
+  int pipefd[2] = { -1 , -1 }; 
+
   if( -1 == pipe( pipefd  ) ){
+    const int errno_store = errno;
     perror( "pipe()" );
+    errno = errno_store;
+    return -1; 
   }
   assert( 0 <= pipefd[READ_SIDE] );
   assert( 0 <= pipefd[WRITE_SIDE] );
@@ -245,22 +253,24 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
      （つまり 書き込み側が exec に成功して、閉じたことを意味し）
      exec が失敗した時には、そのerrno が親プロセス側で検知することができる。
   */
-  int fcntl_result = -1;
-  VERIFY( 0 == ( fcntl_result = fcntl_set_close_exec( pipefd[ WRITE_SIDE ] ) ));
-  
-  pid_t result = -1; /* この関数の戻り値 */
-
-  if( 0 != fcntl_result ){
-    goto ERROR_HANDLE_PIPE;
+  {
+    const int fcntl_result = fcntl_set_close_exec( pipefd[ WRITE_SIDE ] );
+    VERIFY( 0 == fcntl_result ); 
+    if( 0 != fcntl_result ){
+      goto ERROR_HANDLE_PIPE;
+    }
   }
   
   sigset_t oldset = {{0}};
-  VERIFY( 0 == sigemptyset( &oldset ) ); // TODO 既にブロックされているシグナルを考慮していないので修正が必要
+  VERIFY( 0 == sigemptyset( &oldset ) ); 
 
   { /* SIGCHLD をマスクして fork() に備える */
     sigset_t sigset = {{0}};
     VERIFY( 0 == sigemptyset( &sigset ) );
+    /* 既に設定されている シグナルのマスクを尊重して、状態を引き継ぐために、sigprocmask(3)で問い合わせ */
+    VERIFY( 0 == sigprocmask( SIG_BLOCK /* ignored */ , NULL , &sigset ) ); 
     VERIFY( 0 == sigaddset( &sigset , SIGCHLD ) );
+
     if( 0 != sigprocmask( SIG_BLOCK , &sigset , &oldset ) ){
       perror("sigprocmask( SIG_BLOCK , &sigset , &oldset )");
       goto ERROR_HANDLE_PIPE;
@@ -288,10 +298,10 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
       assert( -1 != suspended_sigchld_pipefd[READ_SIDE]  );
 
       for(;;){
-        int status;
+        int status = 0 ; /* プロセスの終了ステータス */
         const pid_t waitpid_result = waitpid( pid , &status , WNOHANG );
+        /* waitpid(2) で自身のプロセスが止まっているときにシグナルを受信しwaitpid() が制御を戻した */
         if( -1 == waitpid_result && EINTR == errno ){
-          /* waitpid(2) でプロセスが止まっているときに、シグナルを受信し、waitpid() が制御を戻した */
           continue;
         }
         
