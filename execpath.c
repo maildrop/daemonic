@@ -222,6 +222,10 @@ static pid_t fork_and_exec( int (*exec)( const char* , char * const [] ) , const
 static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , const char* path , char* const argv[] );
 
 
+/**
+   fork して、exec する
+
+ */
 static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , const char* path , char* const argv[] )
 {
   int pipefd[2] = { -1 , -1 };
@@ -237,7 +241,7 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
      自動的に、書き込み側が閉じられるので、
      親プロセス側では、read(2) で待っていると、
      
-     exec が成功したら0byteのread に成功されて、
+     exec が成功したら0byteのread に成功し、
      （つまり 書き込み側が exec に成功して、閉じたことを意味し）
      exec が失敗した時には、そのerrno が親プロセス側で検知することができる。
   */
@@ -250,9 +254,8 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
     goto ERROR_HANDLE_PIPE;
   }
   
-
   sigset_t oldset = {{0}};
-  VERIFY( 0 == sigemptyset( &oldset ) );
+  VERIFY( 0 == sigemptyset( &oldset ) ); // TODO 既にブロックされているシグナルを考慮していないので修正が必要
 
   { /* SIGCHLD をマスクして fork() に備える */
     sigset_t sigset = {{0}};
@@ -312,7 +315,6 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
       /******  TODO シグナルハンドラをもとに外す ******/
       /******  わすれないようにしましょう        ******/
       /************************************************/
-
       
       VERIFY( 0 == close( suspended_sigchld_pipefd[WRITE_SIDE] )) ; // 書き込み側を閉じる
       suspended_sigchld_pipefd[WRITE_SIDE] = -1; /* パイプのファイルディスクリプタ が後で閉じたことを確認するために-1 を指定しておく*/
@@ -321,11 +323,15 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
       char b = 0;
       while( 0 < read( suspended_sigchld_pipefd[READ_SIDE] , &b , sizeof( b ) ) ){ // おかしい。 -1 を返してきたときのことが考えられていない。
         if( 0 != raise( SIGCHLD ) ){
-          break; // raise(3) に失敗した時に注意 まだ、読み取ってないSIGCHLD がありますよ
+          // raise(3) に失敗した時に注意 まだ、読み取ってないSIGCHLD がありますよ
+          while( 0 < read( suspended_sigchld_pipefd[READ_SIDE] , &b , sizeof( b ) )){
+            ;
+          }
+          break;
         }
       }
-      
-      close( suspended_sigchld_pipefd[READ_SIDE]  ); // 読み込み側も閉じる
+      VERIFY( 0 == close( suspended_sigchld_pipefd[READ_SIDE]  )); // 読み込み側も閉じる
+
       suspended_sigchld_pipefd[READ_SIDE] = -1; /* 安全のため */
     }
 
@@ -342,23 +348,23 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
 #endif /* 多分こんなかんじ */
   
   if( 0 == pid ){
-    /* 子プロセスの シグナルブロックを解除する */
+    VERIFY( 0 == close( pipefd[ READ_SIDE ] ) );
+    /* 子プロセス側の シグナルブロックを解除する */
     VERIFY( 0 == sigprocmask( SIG_SETMASK , &oldset , NULL ) );
 
-    VERIFY( 0 == close( pipefd[ READ_SIDE ] ) );
     if( -1 == exec( path , argv) ){
       /* execl 失敗した時には、失敗した理由 errno を パイプに書き込んで終了する。*/
-      int b = errno;
+      const int b = errno;
       VERIFY( sizeof( b ) == write( pipefd[WRITE_SIDE] , &b , sizeof( b ) ) );
       VERIFY( 0 == close( pipefd[WRITE_SIDE] ) );
       _exit(EXIT_SUCCESS);
     }
   }else{
-    /* TODO sigaction() */
-
-    /* 親プロセスのシグナルブロックを解除する */
-    VERIFY( 0 == sigprocmask( SIG_SETMASK , &oldset , NULL ) );
     VERIFY( 0 == close( pipefd[ WRITE_SIDE ] ) );
+    /* 親プロセス側のシグナルブロックを解除する */
+    VERIFY( 0 == sigprocmask( SIG_SETMASK , &oldset , NULL ) );
+
+    /* TODO sigaction() */
     for(;;){
       /** select で、処理する必要がある */
       int read_errno = 0; /* パイプから読み取ったエラー番号値 */
