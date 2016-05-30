@@ -9,6 +9,7 @@
 #endif /* defined(HAVE_CONFIG_H) */
 
 #include <sys/types.h>
+#include <sys/select.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -285,78 +286,155 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
 
   /********************** TODO **********************/
   /* 
-    何をするのか 
-    このfork() と関係のない子プロセスが終了した時に
-    SIGCHLD が発生するが、それを確実に補足するように変更する責任がある。
-    あれ？ 回数数えるだけでいいんだから、self-pipe 使う必要なくない？ 
-  */
-#if 0 /* 多分こんなかんじ */
-  do{
-    int suspended_sigchld_pipefd[2] = {-1,-1};
-    if( 0 == pipe( suspended_sigchld_pipefd ) ){
-      assert( -1 != suspended_sigchld_pipefd[WRITE_SIDE] ); 
-      assert( -1 != suspended_sigchld_pipefd[READ_SIDE]  );
 
-      for(;;){
-        int status = 0 ; /* プロセスの終了ステータス */
-        const pid_t waitpid_result = waitpid( pid , &status , WNOHANG );
-        /* waitpid(2) で自身のプロセスが止まっているときにシグナルを受信しwaitpid() が制御を戻した */
-        if( -1 == waitpid_result && EINTR == errno ){
-          continue;
-        }
-        
-        if( -1 == waitpid_result ){ // エラーが発生した。
-          const int waitpid_errno = errno; // waitpid() が -1 を返して エラーを通知してきたときの errno 
-          VERIFY( EINVAL != waitpid_errno );
-          VERIFY( ECHILD != waitpid_errno );
-          abort(); // 関知しないエラー？ どうなっているのか確認する必要がある。
-        }else if( waitpid_result == pid  ){  // 当該のプロセスが終了した。
-          // ファイルディスクリプタのチェック
-          break;
-        }else if( 0 == waitpid_result ){ // 当該のプロセスはまだ生きている
-          // ということは、後で、raise(SIGCHLD) を発行する必要がある。
-          char b = 0;
-          assert( -1 != suspended_sigchld_pipefd[ WRITE_SIDE ] );
-          write( suspended_sigchld_pipefd[WRITE_SIDE] , &b , sizeof( b ) );
-        }
-      } // end of for(;;)
+     
+   */
+  /***************************************************/
+#if 0  /* 多分こんなかんじ */
+  if( 0 == pid ){
+    VERIFY( 0 == close( pipefd[ READ_SIDE ] ) );
+    /* 子プロセス側の シグナルブロックを解除する */
+    VERIFY( 0 == sigprocmask( SIG_SETMASK , &oldset , NULL ) );
 
-      /************************************************/
-      /******  TODO シグナルハンドラをもとに外す ******/
-      /******  わすれないようにしましょう        ******/
-      /************************************************/
-      
-      VERIFY( 0 == close( suspended_sigchld_pipefd[WRITE_SIDE] )) ; // 書き込み側を閉じる
-      suspended_sigchld_pipefd[WRITE_SIDE] = -1; /* パイプのファイルディスクリプタ が後で閉じたことを確認するために-1 を指定しておく*/
-      
-      // サスペンドされたシグナルの回数分 raise する
-      char b = 0;
-      while( 0 < read( suspended_sigchld_pipefd[READ_SIDE] , &b , sizeof( b ) ) ){ // おかしい。 -1 を返してきたときのことが考えられていない。
-        if( 0 != raise( SIGCHLD ) ){
-          // raise(3) に失敗した時に注意 まだ、読み取ってないSIGCHLD がありますよ
-          while( 0 < read( suspended_sigchld_pipefd[READ_SIDE] , &b , sizeof( b ) )){
-            ;
-          }
+    if( -1 == exec( path , argv) ){
+      /* execl 失敗した時には、失敗した理由 errno を パイプに書き込んで終了する。*/
+      const int b = errno;
+      VERIFY( sizeof( b ) == write( pipefd[WRITE_SIDE] , &b , sizeof( b ) ) );
+      VERIFY( 0 == close( pipefd[WRITE_SIDE] ) );
+      _exit(EXIT_SUCCESS);
+    }
+  }else{
+    VERIFY( 0 == close( pipefd[ WRITE_SIDE ] ) );
+    /* TODO 
+       親プロセス側のシグナルブロックを解除するが、これは、微妙なタイミングに関する問題がおきるので、
+       要検証 */
+    VERIFY( 0 == sigprocmask( SIG_SETMASK , &oldset , NULL ) );
+
+    /* TODO sigaction() */
+
+    /* select の発行 */
+    for(;;){
+      fd_set readfds;
+      FD_ZERO( &readfds );
+      FD_SET( pipefd[READ_SIDE] , &readfds );
+      const int select_result = select( (pipefd[READ_SIDE] + 1) , &readfds , NULL ,NULL , NULL );
+      if( -1 == select_result && EINTR == errno ){ // 割り込みを受けた
+        continue;
+      }
+      if( -1 == select_result ){
+        perror("select()");
+        abort();
+      }
+      if( 0 < select_result ){
+        if( FD_ISSET( pipefd[READ_SIDE] , &readfds ) ){
+          for(;;){
+            /** select で、処理する必要がある */
+            int read_errno = 0; /* パイプから読み取ったエラー番号値 */
+            const ssize_t read_v = read( pipefd[READ_SIDE] , &read_errno  , sizeof(read_errno) ); 
+            // read_v は 負を返す場合があるのに注意
+            if( -1 == read_v ){
+              if( EINTR == errno ){
+                continue;
+              }
+              perror("read( pipefd[READ_SIDE] , &b  , sizeof(b) )");
+              abort();
+            }
+            
+            if( read_v == 0 ){
+              errno = 0;
+            }else if( read_v == sizeof( read_errno ) ){
+              /* exec に失敗した時には、関数内で プロセスの回収を行う */
+              {
+                int status = 0;
+                VERIFY( pid == waitpid( pid , &status , 0 ) );
+                VERIFY( EXIT_SUCCESS == status );
+              }
+              /* エラーメッセージの出力 */
+              fdperror( STDERR_FILENO , read_errno, "exec()" );
+
+              /* 
+                 何をするのか 
+                 このfork() と関係のない子プロセスが終了した時に
+                 SIGCHLD が発生するが、それを確実に補足するように変更する責任がある。
+                 あれ？ 回数数えるだけでいいんだから、self-pipe 使う必要なくない？ 
+              */
+              do{
+                int suspended_sigchld_pipefd[2] = {-1,-1};
+                if( 0 == pipe( suspended_sigchld_pipefd ) ){
+                  assert( -1 != suspended_sigchld_pipefd[WRITE_SIDE] ); 
+                  assert( -1 != suspended_sigchld_pipefd[READ_SIDE]  );
+                  for(;;){
+                    int status = 0 ; /* プロセスの終了ステータス */
+                    const pid_t waitpid_result = waitpid( pid , &status , WNOHANG );
+                    /* waitpid(2) で自身のプロセスが止まっているときにシグナルを受信しwaitpid() が制御を戻した */
+                    if( -1 == waitpid_result && EINTR == errno ){
+                      continue;
+                    }
+                    
+                    if( -1 == waitpid_result ){ // エラーが発生した。
+                      const int waitpid_errno = errno; // waitpid() が -1 を返して エラーを通知してきたときの errno 
+                      VERIFY( EINVAL != waitpid_errno );
+                      VERIFY( ECHILD != waitpid_errno );
+                      abort(); // 関知しないエラー？ どうなっているのか確認する必要がある。
+                    }else if( waitpid_result == pid  ){  // 当該のプロセスが終了した。
+                      // ファイルディスクリプタのチェック
+                      break;
+                    }else if( 0 == waitpid_result ){ // 当該のプロセスはまだ生きている
+                      // ということは、後で、raise(SIGCHLD) を発行する必要がある。
+                      char b = 0;
+                      assert( -1 != suspended_sigchld_pipefd[ WRITE_SIDE ] );
+                      write( suspended_sigchld_pipefd[WRITE_SIDE] , &b , sizeof( b ) );
+                    }
+                  } // end of for(;;)
+                  
+                  /************************************************/
+                  /******  TODO シグナルハンドラをもとに外す ******/
+                  /******  わすれないようにしましょう        ******/
+                  /************************************************/
+                  
+                  VERIFY( 0 == close( suspended_sigchld_pipefd[WRITE_SIDE] )) ; // 書き込み側を閉じる
+                  suspended_sigchld_pipefd[WRITE_SIDE] = -1; /* パイプのファイルディスクリプタ が後で閉じたことを確認するために-1 を指定しておく*/
+                  
+                  // サスペンドされたシグナルの回数分 raise する
+                  char b = 0;
+                  while( 0 < read( suspended_sigchld_pipefd[READ_SIDE] , &b , sizeof( b ) ) ){ // おかしい。 -1 を返してきたときのことが考えられていない。
+                    // raise() を使用して、 suspend された sigaction をもっかい投げる 
+                    if( 0 != raise( SIGCHLD ) ){
+                      // raise(3) に失敗した時に注意 まだ、読み取ってないSIGCHLD がありますよ
+                      while( 0 < read( suspended_sigchld_pipefd[READ_SIDE] , &b , sizeof( b ) )){
+                        ;
+                      }
+                      break;
+                    }
+                  }
+                  VERIFY( 0 == close( suspended_sigchld_pipefd[READ_SIDE]  )); // 読み込み側も閉じる
+                  
+                  suspended_sigchld_pipefd[READ_SIDE] = -1; /* 安全のため */
+                }
+
+                assert( -1 == suspended_sigchld_pipefd[WRITE_SIDE] );
+                assert( -1 == suspended_sigchld_pipefd[READ_SIDE] );
+                
+                if( -1 != suspended_sigchld_pipefd[WRITE_SIDE] ){
+                  VERIFY( 0 == close( suspended_sigchld_pipefd[WRITE_SIDE] ) );
+                }
+                if( -1 != suspended_sigchld_pipefd[READ_SIDE] ){
+                  VERIFY( 0 == close( suspended_sigchld_pipefd[READ_SIDE] ) );
+                }
+              }while( (void)0, 0 ); // end of do-while 
+              errno = read_errno;
+            } /* end of if ( read_v == sizeof( b ) ) */
+            break;
+          } /* end of for(;;) */
+          VERIFY( 0 == close( pipefd[ READ_SIDE ] ) );
           break;
         }
       }
-      VERIFY( 0 == close( suspended_sigchld_pipefd[READ_SIDE]  )); // 読み込み側も閉じる
-
-      suspended_sigchld_pipefd[READ_SIDE] = -1; /* 安全のため */
-    }
-
-    assert( -1 == suspended_sigchld_pipefd[WRITE_SIDE] );
-    assert( -1 == suspended_sigchld_pipefd[READ_SIDE] );
-
-    if( -1 != suspended_sigchld_pipefd[WRITE_SIDE] ){
-      VERIFY( 0 == close( suspended_sigchld_pipefd[WRITE_SIDE] ) );
-    }
-    if( -1 != suspended_sigchld_pipefd[READ_SIDE] ){
-      VERIFY( 0 == close( suspended_sigchld_pipefd[READ_SIDE] ) );
-    }
-  }while( (void)0, 0 ); // end of do-while 
-#endif /* 多分こんなかんじ */
+    } // end of for(;;)
+    // TODO sigaction で元に戻す
+  }
   
+#else
   if( 0 == pid ){
     VERIFY( 0 == close( pipefd[ READ_SIDE ] ) );
     /* 子プロセス側の シグナルブロックを解除する */
@@ -408,6 +486,8 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
     // raise() を使用して、 suspend された sigaction をもっかい投げる 
     VERIFY( 0 == close( pipefd[ READ_SIDE ] ) );
   }
+#endif 
+
   return result;
 
  ERROR_HANDLE_SIGNAL:
