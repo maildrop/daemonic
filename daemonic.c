@@ -620,23 +620,22 @@ int entry_point( int argc , char* argv[] )
     }
   }
 
+  {
+    const pid_t pid = fork();
+    if( pid < 0 ){ // fork fail.
+      perror( "fork faild" );
+      return EXIT_FAILURE;
+    }
+    
+    if( 0 != pid ){
+      return EXIT_SUCCESS;
+    }
 
-  const pid_t pid = fork();
-  if( pid < 0 ){ // fork fail.
-    perror( "fork faild" );
-    return EXIT_FAILURE;
-  }
-
-  if( 0 != pid ){
-    return EXIT_SUCCESS;
-  }
-  
-  assert( 0 == pid );
-  
-  /* セッショングループを作り直して端末グループから 外れる */
-  /* TODO 現在これが許されていない動作というのを返す */
-  if( -1 == setsid() ){
-    perror("create new session");
+    /* セッショングループを作り直して端末グループから外れる  */
+    assert( 0 == pid && "the process is child process.");
+    if( -1 == setsid() ){
+      perror("create new session");
+    }
   }
 
   /* パイプを作成する */
@@ -648,15 +647,18 @@ int entry_point( int argc , char* argv[] )
 
   assert( 0 <=logger_pipes[0] );
   assert( 0 <=logger_pipes[1] );
-  
+
+  /* ログを書きだす先の プロセスを作成する */
   const pid_t logger_pid = fork();
   
   if( -1 == logger_pid ){
-    perror( "fork faild");
+    perror( "fork() faild");
     VERIFY( 0 == close( logger_pipes[WRITE_SIDE] ));
     VERIFY( 0 == close( logger_pipes[READ_SIDE] ));
     abort();
-  }else if( 0 == logger_pid){
+  }
+
+  if( 0 == logger_pid){
     VERIFY( 0 == close( logger_pipes[WRITE_SIDE] ));
     exec_logger_process( logger_pipes[READ_SIDE] );
     return EXIT_FAILURE;
