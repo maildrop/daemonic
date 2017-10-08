@@ -490,8 +490,8 @@ int start_process( struct process_param param,  const char* path , char * argv[]
      親 sigaction() して、シグナルマスクの解除 処置後に sigaction()
      したほうが多分よい  */
   // シグナルを禁止する。
-  sigset_t oldset = {{0}};
-  sigset_t sigset = {{0}};
+  sigset_t oldset = {0};
+  sigset_t sigset = {0};
   sigemptyset( &oldset );
   sigemptyset( &sigset );
   VERIFY( 0 == sigaddset(&sigset, SIGCHLD ) );

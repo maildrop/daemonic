@@ -262,11 +262,11 @@ static pid_t fork_and_exec_do( int (*exec)( const char* , char * const [] ) , co
     }
   }
   
-  sigset_t oldset = {{0}};
+  sigset_t oldset = {0};
   VERIFY( 0 == sigemptyset( &oldset ) ); 
 
   { /* SIGCHLD をマスクして fork() に備える */
-    sigset_t sigset = {{0}};
+    sigset_t sigset = {0};
     VERIFY( 0 == sigemptyset( &sigset ) );
     /* 既に設定されている シグナルのマスクを尊重して、状態を引き継ぐために、sigprocmask(3)で問い合わせ */
     VERIFY( 0 == sigprocmask( SIG_BLOCK /* ignored */ , NULL , &sigset ) ); 
