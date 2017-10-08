@@ -13,7 +13,7 @@
 
 #if !defined( VERIFY )
 #if defined( NDEBUG )
-#define VERIFY( exp ) (exp)
+#define VERIFY( exp ) ((void)(exp))
 #else /* defined( NDEBUG ) */
 #define VERIFY( exp ) assert( exp )
 #endif /* defined( NDEBUG ) */

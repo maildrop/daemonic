@@ -619,7 +619,8 @@ int entry_point( int argc , char* argv[] )
       return EXIT_FAILURE;
     }
   }
-  
+
+
   const pid_t pid = fork();
   if( pid < 0 ){ // fork fail.
     perror( "fork faild" );
@@ -633,12 +634,12 @@ int entry_point( int argc , char* argv[] )
   assert( 0 == pid );
   
   /* セッショングループを作り直して端末グループから 外れる */
+  /* TODO 現在これが許されていない動作というのを返す */
   if( -1 == setsid() ){
     perror("create new session");
   }
 
-  // TODO ここでパイプを立ち上げる
-
+  /* パイプを作成する */
   int logger_pipes[2] = {-1,-1};
   if( pipe( logger_pipes ) ){
     perror( "pipe()" );
@@ -693,9 +694,13 @@ int entry_point( int argc , char* argv[] )
 
     if( pid_file_path ){
       // TODO ここの PID_FILE_PATH の作り方、もうちょっと注意が必要 
-      char *p = strrchr( argv[0] , '/' );
-      p++;
-      p = '\0' == *p ? NULL : p;
+      char *p = strrchr( argv[0] , '/' ); 
+      if( p ){
+        p++;
+        p = (('\0' == *p) ? NULL : p);
+      }else{
+        p = argv[0];
+      }
       VERIFY( 0 < snprintf( pid_file_path, sizeof( char ) * PATH_MAX , "/tmp/%s.pid" ,  (p)?(p): argv[0] ) );
       param.pid_file_path = pid_file_path;
       
