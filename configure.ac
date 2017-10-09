@@ -31,7 +31,6 @@ AC_INIT(deamonic, 0.0.1 , [mit@shalab.net])
 AC_CONFIG_SRCDIR([daemonic.c])
 AM_INIT_AUTOMAKE([foreign])
 
-AC_CONFIG_HEADERS([config.h])
 
 # Checks for programs.
 AC_PROG_CC
@@ -41,6 +40,10 @@ AX_CHECK_CFLAGS( [-std=c11] , [] ,[
   exit 2
 ])
 
+CFLAGS="${CFLAGS} -Wall -D_XOPEN_SOURCE=700"
+AC_CONFIG_HEADERS([config.h])
+AM_CONDITIONAL([DEBUG], [test x$debug = xtrue])
+
 AC_ARG_ENABLE([debug],
 [  --enable-debug    Turn on debugging],
 [case "${enableval}" in
@@ -48,7 +51,6 @@ AC_ARG_ENABLE([debug],
   no)  debug=false ;;
   *) AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;;
 esac],[debug=false])
-AM_CONDITIONAL([DEBUG], [test x$debug = xtrue])
 
 # Checks for libraries.
 
@@ -64,7 +66,7 @@ AC_TYPE_SSIZE_T
 AC_FUNC_FORK
 AC_FUNC_MALLOC
 AC_FUNC_STRERROR_R
-AC_CHECK_FUNCS([dup2 fdatasync pathconf realpath select strdup strrchr])
+AC_CHECK_FUNCS([dup2 fdatasync fsync pathconf realpath select strdup strrchr])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

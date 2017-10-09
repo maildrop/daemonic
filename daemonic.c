@@ -469,14 +469,18 @@ int start_process( struct process_param param,  const char* path , char * argv[]
       perror( "open( pid_file_path  , O_WRONLY | O_EXCL | O_CREAT , S_IRUSR | S_IWUSR | S_IWOTH )");
       return EXIT_FAILURE;
     }else{
-      char pidnum[16] = {0}; // 多分 6桁あればいいと思う
-      const size_t len = snprintf( pidnum , sizeof( pidnum ) , "%d\n" , (int)(getpid()) );
+      char pidnum[16] = {0}; // 多分 6桁あればいいと思うが、15桁分用意する。
+      const size_t len =
+        snprintf( pidnum , sizeof( pidnum ) / sizeof( pidnum[0] ) ,
+                  "%d\n" , (int)(getpid()) );
       if( 0 < len ){
         ssize_t write_result;
         if( len != ( write_result = write( fd , pidnum , len )) ){
           perror("write( fd , pidnum , len )" );
         }else{
-          VERIFY(0 == fdatasync( fd ) );
+#if defined( HAVE_FSYNC )
+          VERIFY(0 == fsync( fd ) );
+#endif
         }
       }
       VERIFY( 0 == close( fd ) );

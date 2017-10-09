@@ -1,11 +1,9 @@
 
 if DEBUG
-CFLAGS += -Wall
+CFLAGS += 
 else
-CFLAGS += -Wall -DNDEBUG
+CFLAGS += -DNDEBUG
 endif
-
-CFLAGS += -D_XOPEN_SOURCE=700 
 
 bin_PROGRAMS = daemonic
 noinst_PROGRAMS = sampledaemon execpath

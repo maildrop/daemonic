@@ -12,6 +12,7 @@
 #include <sys/select.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <signal.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -98,12 +99,11 @@ int pathconf_path_max( size_t* length )
 char* get_canonical_path( const char* path )
 {
   size_t path_max = 0; /* PATH_MAX の値が保持されるsize_t 値 */
-
   const int pathconf_result = pathconf_path_max( &path_max );
-  assert( 0 < pathconf_result );
-  (void)( pathconf_result );
-  
-  if( path_max < 0 ){ // 取得に失敗したので
+
+  /* まず最初に path_max が信用のおける値なのかどうかを確認する 
+     pathconf_path_max が -1 を返してきた時には、path_maxの値は設定されていない */
+  if( pathconf_result < 0 ){ // 取得に失敗したので
     /* pathconf_path_max() が設定した errno をそのまま使う */
     return NULL;
   }
