@@ -105,7 +105,7 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS) $(noinst_PROGRAMS)
-am_daemonic_OBJECTS = daemonic.$(OBJEXT)
+am_daemonic_OBJECTS = daemonic.$(OBJEXT) alternative.$(OBJEXT)
 daemonic_OBJECTS = $(am_daemonic_OBJECTS)
 daemonic_LDADD = $(LDADD)
 am_execpath_OBJECTS = execpath.$(OBJEXT)
@@ -280,7 +280,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-daemonic_SOURCES = daemonic.c verify.h
+daemonic_SOURCES = daemonic.c alternative.c verify.h
 sampledaemon_SOURCES = sampledaemon.c
 execpath_SOURCES = execpath.c verify.h
 all: config.h
@@ -400,6 +400,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/alternative.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/daemonic.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/execpath.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sampledaemon.Po@am__quote@

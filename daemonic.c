@@ -67,6 +67,7 @@
 #include <assert.h>
 
 #include "verify.h"
+#include "alternative.h"
 
 #if !defined( VERIFY )
 #if defined( NDEBUG )
@@ -474,13 +475,11 @@ int start_process( struct process_param param,  const char* path , char * argv[]
         snprintf( pidnum , sizeof( pidnum ) / sizeof( pidnum[0] ) ,
                   "%d\n" , (int)(getpid()) );
       if( 0 < len ){
-        ssize_t write_result;
-        if( len != ( write_result = write( fd , pidnum , len )) ){
+        const ssize_t write_result = write( fd , pidnum , len );
+        if( len != write_result ){
           perror("write( fd , pidnum , len )" );
         }else{
-#if defined( HAVE_FSYNC )
-          VERIFY(0 == fsync( fd ) );
-#endif
+          VERIFY(0 == x_fdatasync( fd ) );
         }
       }
       VERIFY( 0 == close( fd ) );

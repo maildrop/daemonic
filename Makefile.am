@@ -7,7 +7,7 @@ endif
 
 bin_PROGRAMS = daemonic
 noinst_PROGRAMS = sampledaemon execpath
-daemonic_SOURCES = daemonic.c verify.h
+daemonic_SOURCES = daemonic.c alternative.c verify.h
 sampledaemon_SOURCES = sampledaemon.c
 execpath_SOURCES = execpath.c verify.h
 
