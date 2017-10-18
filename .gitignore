@@ -50,7 +50,7 @@ config.status
 stamp-h1
 .deps/
 
-deamonic-0.0.1.tar.gz
+/deamonic-*.tar.gz
 
 # working log
 workinglog.txt
