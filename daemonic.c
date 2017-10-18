@@ -602,6 +602,7 @@ void exec_logger_process( int readfd )
 void print_help_text(const char* self_path)
 {
   fprintf( stdout, "%s daemonlize_program [daemonlize_program_args...]\n" , self_path );
+  fprintf( stdout, " 起動するプログラムは ./sampledaemon とパスを記述するか、絶対パスにする必要があります。\n");
   return;
 }
 
