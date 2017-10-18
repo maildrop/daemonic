@@ -470,7 +470,7 @@ int start_process( struct process_param param,  const char* path , char * argv[]
       return EXIT_FAILURE;
     }else{
       char pidnum[16] = {0}; // 多分 6桁あればいいと思うが、15桁分用意する。
-      const size_t len =
+      const ssize_t len =
         snprintf( pidnum , sizeof( pidnum ) / sizeof( pidnum[0] ) ,
                   "%d\n" , (int)(getpid()) );
       if( 0 < len ){
