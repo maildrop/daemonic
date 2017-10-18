@@ -27,7 +27,7 @@ EOF
 
 
 AC_PREREQ([2.69])
-AC_INIT(deamonic, 0.0.1 , [mit@shalab.net])
+AC_INIT(deamonic,0.0.1,[mit@shalab.net])
 AC_CONFIG_SRCDIR([daemonic.c])
 AM_INIT_AUTOMAKE([foreign])
 
